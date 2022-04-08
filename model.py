@@ -1,11 +1,13 @@
-from pyexpat import model
 import torch
 import torch.nn as nn
 import torchvision.models as models
+from torch.nn import functional as F
+import numbers
 import functools
 
 from einops import repeat
 from torchvision.models import feature_extraction
+from kornia import filters
 
 
 def rgetattr(obj, attr, *args):
@@ -40,7 +42,8 @@ class Finializer(nn.Module):
             torch.Tensor([center_bias_weight]))
 
     def forward(self, x):
-        pass
+        x = 1 - filters.gaussian_blur2d(x, kernel_size=3, sigma=1.0)
+        return x
 
 
 class Distractor(nn.Module):
@@ -60,9 +63,8 @@ class Distractor(nn.Module):
                                   h2=2,
                                   w2=2)
         feature = torch.cat(features, dim=1)
-        # TODO: FIX the finializer
         x = self.readout_net(feature)
-        x = 1 - (self.finilializer(x) + self.center_bias_weight * x)
+        x = self.finilializer(x)
         return x
 
 
