@@ -1,13 +1,23 @@
 import torch
 import torch.nn as nn
 import torchvision.models as models
-from torch.nn import functional as F
-import numbers
 import functools
 
 from einops import repeat
 from torchvision.models import feature_extraction
 from kornia import filters
+from collections import OrderedDict
+
+TARGET_LAYERS = [
+    'layer3.1.conv1',  # 1, 256, 14, 14
+    'layer3.1.conv2',  # 1, 256, 14, 14
+    'layer3.0.conv2',  # 1, 256, 14, 14
+    'layer4.0.conv2'
+]  # 1, 512, 7, 7
+
+FEATURE_CHANNELS_NUM = 256 + 256 + 256 + 512
+FEATURE_H = 14
+FEATURE_W = 14
 
 
 def rgetattr(obj, attr, *args):
@@ -26,23 +36,38 @@ def create_model(model_config):
 
 class ReadoutNet(nn.Module):
 
-    def __init__(self):
+    def __init__(self, feature_channels_num, feature_h, feature_w):
         super(ReadoutNet, self).__init__()
-        pass
+        self.net = nn.Sequential(
+            OrderedDict([
+                ('layernorm0',
+                 nn.LayerNorm([feature_channels_num, feature_h, feature_w])),
+                ('conv0', nn.Conv2d(FEATURE_CHANNELS_NUM,
+                                    128, (1, 1),
+                                    bias=True)),
+                ('softplus0', nn.Softplus()),
+                ('layernorm1', nn.LayerNorm([128, feature_h, feature_w])),
+                ('conv1', nn.Conv2d(128, 16, (1, 1), bias=True)),
+                ('softplus1', nn.Softplus()),
+                ('conv2', nn.Conv2d(16, 1, (1, 1), bias=True)),
+            ]))
 
     def forward(self, x):
-        pass
+        return self.net(x)
 
 
 class Finializer(nn.Module):
 
     def __init__(self, center_bias_weight=1):
         super(Finializer, self).__init__()
-        self.center_bias_weight = nn.Parameter(
-            torch.Tensor([center_bias_weight]))
+        # self.center_bias_weight = nn.Parameter(
+        #     torch.Tensor([center_bias_weight]))
 
     def forward(self, x):
-        x = 1 - filters.gaussian_blur2d(x, kernel_size=3, sigma=1.0)
+        x = filters.gaussian_blur2d(x,
+                                    kernel_size=[3, 3],
+                                    sigma=[.75, .75],
+                                    border_type='constant')
         return x
 
 
@@ -76,6 +101,7 @@ class Regressor(nn.Module):
                  weights_path=None):
         super(Regressor, self).__init__()
         self.backbone = models.__dict__[backbone_type](pretrained=pretrained)
+        self.backbone.eval()
 
         num_features = self.backbone.fc.in_features
         self.backbone.fc = nn.Linear(num_features, 2)
