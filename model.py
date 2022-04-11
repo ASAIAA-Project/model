@@ -7,10 +7,6 @@ from torchvision.models import feature_extraction
 from kornia import filters
 from collections import OrderedDict
 
-# def rgetattr(obj, attr, *args):
-#     return functools.reduce(lambda obj, attr: getattr(obj, attr, *args),
-#                             [obj] + attr.split('.'))
-
 
 def create_ASAIAANet(model_config):
     regressor = Regressor(model_config.backbone_type, model_config.pretrained,
@@ -94,10 +90,10 @@ class Regressor(nn.Module):
                  pretrained=True,
                  weights_path=None):
         super(Regressor, self).__init__()
-        self.backbone = models.__dict__[backbone_type](pretrained=pretrained)
 
-        num_features = self.backbone.fc.in_features
-        self.backbone.fc = nn.Linear(num_features, 2)
+        self.backbone = models.__dict__[backbone_type](pretrained=pretrained)
+        self.backbone.fc = nn.Linear(self.backbone.fc.in_features, 2)
+
         if weights_path:
             self.backbone.load_state_dict(torch.load(weights_path))
 

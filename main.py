@@ -76,6 +76,8 @@ if __name__ == '__main__':
     parser = set_parse()
     args = parser.parse_args()
     model = create_ASAIAANet(args)
+
+    # test
     x = torch.rand(1, 3, 224, 224)
     x = model(x)
     print(x)
