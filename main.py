@@ -1,9 +1,12 @@
-from pydoc import Helper
 import configargparse
-from sympy import re
+import torch
 
-if __name__ == '__main__':
-    config_file_path = './config/config.yml'
+from model import create_ASAIAANet
+
+
+def set_parse():
+    config_file_path = '/Users/zhangjunjie/model/config/config.yml'
+    # TODO: change the path into relative after testing
     parser = configargparse.ArgParser(
         config_file_parser_class=configargparse.YAMLConfigFileParser,
         default_config_files=[config_file_path])
@@ -18,10 +21,61 @@ if __name__ == '__main__':
                         required=True,
                         help='device',
                         default='cuda')
-    parser.add_argument('--target_layer',
-                        type=list,
+    parser.add_argument('--feature_target_layer',
+                        type=str,
                         required=True,
-                        help='the node str of target layer')
+                        action='append',
+                        help='the list of node name of target layers')
+    parser.add_argument('--distracting_block',
+                        type=str,
+                        required=True,
+                        help='the node name of layer to be distracted')
+    parser.add_argument('--center_bias_weight',
+                        type=int,
+                        help='The initial weight of the center bias')
+    parser.add_argument('--GB_kernel_size',
+                        type=int,
+                        required=True,
+                        help='The kernel size of the gaussian blur')
+    parser.add_argument('--GB_sigma',
+                        type=float,
+                        required=True,
+                        help='The sigma of the gaussian blur')
+    parser.add_argument('--learning_rate',
+                        type=float,
+                        required=True,
+                        help='The learning rate of the optimizer')
+    parser.add_argument('--batch_size',
+                        type=int,
+                        required=True,
+                        help='The batch size of the training')
+    parser.add_argument('--epochs',
+                        type=int,
+                        required=True,
+                        help='The epochs of the training')
+    parser.add_argument('--pretrained',
+                        type=bool,
+                        required=True,
+                        help='Whether to use pretrained backbone')
+    parser.add_argument('--feature_channels_num',
+                        type=int,
+                        required=True,
+                        help='The number of feature channels')
+    parser.add_argument('--feature_h',
+                        type=int,
+                        required=True,
+                        help='The height of feature map')
+    parser.add_argument('--feature_w',
+                        type=int,
+                        required=True,
+                        help='The width of feature map')
+    return parser
 
+
+if __name__ == '__main__':
+    parser = set_parse()
     args = parser.parse_args()
-    print(args.backbone_type)
+    model = create_ASAIAANet(args)
+    x = torch.rand(1, 3, 224, 224)
+    x = model(x)
+    print(x)

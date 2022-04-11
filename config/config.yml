@@ -1,2 +1,17 @@
 backbone_type: resnet18
 device: cpu
+feature_target_layer: 
+  - layer3.1.conv1
+  - layer3.1.conv2
+  - layer3.0.conv2
+  - layer4.0.conv2
+feature_channels_num: 1280 # 256 + 256 + 256 + 512
+feature_h: 14
+feature_w: 14
+distracting_block: layer3
+pretrained: True
+GB_kernel_size: 3
+GB_sigma: 0.75
+batch_size: 128
+learning_rate: 0.01
+epochs: 30
