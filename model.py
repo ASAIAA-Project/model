@@ -70,14 +70,15 @@ class Distractor(nn.Module):
         self.finilializer = finilializer
 
     def forward(self, x):
-        features = list(self.feature_extracter(x).values())
-        for idx in range(len(features)):
-            if features[idx].shape[2] == 7:
-                features[idx] = repeat(features[idx],
-                                       'b c h w -> b c (h2 h) (w2 w)',
-                                       h2=2,
-                                       w2=2)
-        feature = torch.cat(features, dim=1)
+        with torch.no_grad():
+            features = list(self.feature_extracter(x).values())
+            for idx in range(len(features)):
+                if features[idx].shape[2] == 7:
+                    features[idx] = repeat(features[idx],
+                                           'b c h w -> b c (h2 h) (w2 w)',
+                                           h2=2,
+                                           w2=2)
+            feature = torch.cat(features, dim=1)
         x = self.readout_net(feature)
         x = self.finilializer(x)
         return x
