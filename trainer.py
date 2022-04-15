@@ -1,38 +1,40 @@
 """Train the model"""
 
 import logging
-
-from pathlib2 import Path
 import wandb
+import torch
 
 import utils
+
 import numpy as np
+
+from pathlib2 import Path
 from tqdm import tqdm
 
 
 class trainer:
 
-    def __init__(self, model, regressor_optimizer, loss_fn_regressor,
-                 loss_fn_distractor, train_dataloader, val_dataloader,
-                 test_dataloader, metrics, params, save_dir):
+    def __init__(self, model, optimizer_R, loss_fn_R, loss_fn_D,
+                 train_dataloader, val_dataloader, test_dataloader, metrics,
+                 params, save_dir):
         self.model = model
-        self.optimizer = regressor_optimizer
-        self.loss_fn_regressor = loss_fn_regressor
-        self.loss_fn_distractor = loss_fn_distractor
+        self.optimizer = optimizer_R
+        self.loss_fn_R = loss_fn_R
+        self.loss_fn_D = loss_fn_D
         self.dataloader = train_dataloader
         self.val_dataloader = val_dataloader
         self.test_dataloader = test_dataloader
         self.metrics = metrics
         self.params = params
         self.save_dir = save_dir
-        self.train_summary = []
-        self.val_summary = []
-        self.test_summary = []
 
     def train_one_epoch(self):
         self.model.train()
 
-        loss_avg = utils.RunningAverage()
+        loss_D_avg = utils.RunningAverage()
+        loss_R_avg = utils.RunningAverage()
+
+        summary = []
 
         with tqdm(total=len(self.dataloader)) as t:
             for i, (data, target) in enumerate(self.dataloader):
@@ -40,12 +42,19 @@ class trainer:
                     data, target = data.to(
                         'cuda', non_blocking=True), target.to('cuda',
                                                               non_blocking=True)
-                self.optimizer.zero_grad()
                 output = self.model(data)
-                loss = self.loss_fn(output, target)
-                loss.backward()
 
-                self.optimizer.step()
+                # update the parameter of the regressor
+                self.optimizer_R.zero_grad()
+                loss_R = self.loss_fn_R(output, target)
+                loss_R.backward()
+                self.optimizer_R.step()
+
+                # update the parameter of distractor
+                self.optimizer_D.zero_grad()
+                loss_D = self.loss_fn_D(output, target)
+                loss_D.backward()
+                self.optimizer_D.step()
 
                 if i % self.params.save_summary_steps == 0:
                     # extract data from torch Variable, move to cpu, convert to numpy arrays
@@ -57,23 +66,25 @@ class trainer:
                         metric: self.metrics[metric](output, target)
                         for metric in self.metrics
                     }
-                    summary_batch['loss'] = loss.item()
+                    summary_batch['loss_D'] = loss_D.item()
+                    summary_batch['loss_R'] = loss_R.item()
                     if len(self.dataloader
                            ) - i < self.params.save_summary_steps:
                         wandb.log({'train': summary_batch}, commit=False)
                     else:
                         wandb.log({'train': summary_batch})
-                    self.train_summary.append(summary_batch)
-
-                loss_avg.update(loss.item())
+                    summary.append(summary_batch)
 
                 # update ternimal information
-                t.set_postfix(loss='{:05.3f}'.format(loss_avg()))
+                loss_D_avg.update(loss_D.item())
+                loss_R_avg.update(loss_R.item())
+
+                t.set_postfix(loss_D=loss_D_avg(), loss_R=loss_R_avg())
                 t.update()
 
         metrics_mean = {
             metric: np.mean([x[metric] for x in summary_batch])
-            for metric in self.train_summary[0].keys()
+            for metric in summary[0].keys()
         }
 
         metrics_string = " ; ".join("{}: {:05.3f}".format(k, v)
@@ -82,28 +93,29 @@ class trainer:
 
     def validate(self):
         self.model.eval()
-        loss_avg = utils.RunningAverage()
-        for data, target in self.val_dataloader:
-            if self.params.cuda:
-                data, target = data.to('cuda', non_blocking=True), target.to(
-                    'cuda', non_blocking=True)
-            output = self.model(data)
-            loss = self.loss_fn(output, target)
-            summary_batch = {
-                metric: self.metrics[metric](output, target)
-                for metric in self.metrics.keys()
-            }
-            output = output.data.cpu().numpy()
-            target = target.data.cpu().numpy()
-            loss_avg.update(loss.item())
+        summary = []
+        with torch.no_grad():
+            for data, target in self.val_dataloader:
+                if self.params.cuda:
+                    data, target = data.to(
+                        'cuda', non_blocking=True), target.to('cuda',
+                                                              non_blocking=True)
+                output = self.model.regressor(data)
+                loss_R = self.loss_fn_R(output, target)
+                output = output.data.cpu().numpy()
+                target = target.data.cpu().numpy()
+                summary_batch = {
+                    metric: self.metrics[metric](output, target)
+                    for metric in self.metrics.keys()
+                }
+                summary_batch['loss_R'] = loss_R.item()
+                summary.append(summary_batch)
 
         metrics_mean = {
             metric: np.mean([x[metric] for x in summary_batch])
             for metric in self.metrics.keys()
         }
-        metrics_mean['loss'] = loss_avg()
         wandb.log({'val': metrics_mean})
-        self.val_summary.append(metrics_mean)
         metrics_string = " ; ".join("{}: {:05.3f}".format(k, v)
                                     for k, v in metrics_mean.items())
         logging.info("***** Val metrics: " + metrics_string)
@@ -111,28 +123,29 @@ class trainer:
 
     def test(self):
         self.model.eval()
-        loss_avg = utils.RunningAverage()
-        for data, target in self.test_dataloader:
-            if self.params.cuda:
-                data, target = data.to('cuda', non_blocking=True), target.to(
-                    'cuda', non_blocking=True)
-            output = self.model(data)
-            loss = self.loss_fn(output, target)
-            summary_batch = {
-                metric: self.metrics[metric](output, target)
-                for metric in self.metrics.keys()
-            }
-            output = output.data.cpu().numpy()
-            target = target.data.cpu().numpy()
-            loss_avg.update(loss.item())
+        summary = []
+        with torch.no_grad():
+            for data, target in self.test_dataloader:
+                if self.params.cuda:
+                    data, target = data.to(
+                        'cuda', non_blocking=True), target.to('cuda',
+                                                              non_blocking=True)
+                output = self.model.regressor(data)
+                loss_R = self.loss_fn_R(output, target)
+                output = output.data.cpu().numpy()
+                target = target.data.cpu().numpy()
+                summary_batch = {
+                    metric: self.metrics[metric](output, target)
+                    for metric in self.metrics.keys()
+                }
+                summary_batch['loss_R'] = loss_R.item()
+                summary.append(summary_batch)
 
         metrics_mean = {
             metric: np.mean([x[metric] for x in summary_batch])
             for metric in self.metrics.keys()
         }
         wandb.log({'test': metrics_mean})
-        metrics_mean['loss'] = loss_avg()
-        self.test_summary.append(metrics_mean)
         metrics_string = " ; ".join("{}: {:05.3f}".format(k, v)
                                     for k, v in metrics_mean.items())
         logging.info("***** Test metrics: " + metrics_string)
