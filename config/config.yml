@@ -1,6 +1,5 @@
 backbone_type: resnet18
-device: cpu
-feature_target_layer: 
+feature_target_layer:
   - layer3.1.conv1
   - layer3.1.conv2
   - layer3.0.conv2
@@ -15,3 +14,7 @@ GB_sigma: 0.75
 batch_size: 128
 learning_rate: 0.01
 epochs: 30
+wrap_size: 224
+seed: 42
+save_dir: ./experiments/1
+eval_metric_name: accuracy

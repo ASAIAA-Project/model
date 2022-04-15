@@ -1,6 +1,9 @@
 import configargparse
 import torch
+import wandb
 
+from pathlib2 import Path
+from utils import set_all_random_seed
 from model import create_ASAIAANet
 
 
@@ -15,12 +18,6 @@ def set_parse():
                         type=str,
                         required=True,
                         help='backbone type')
-    parser.add_argument('--weight_path', type=str, help='weight path')
-    parser.add_argument('--device',
-                        type=str,
-                        required=True,
-                        help='device',
-                        default='cuda')
     parser.add_argument('--feature_target_layer',
                         type=str,
                         required=True,
@@ -69,12 +66,80 @@ def set_parse():
                         type=int,
                         required=True,
                         help='The width of feature map')
+    parser.add_argument('--save_dir',
+                        type=str,
+                        required=True,
+                        help='The directory to save this experiment')
+    parser.add_argument('--wrap_size',
+                        type=int,
+                        required=True,
+                        help='The size of the image to be wrapped')
+    parser.add_argument('--wandb_project',
+                        type=str,
+                        required=True,
+                        help='The project name of wandb')
+    parser.add_argument('--seed',
+                        type=int,
+                        required=True,
+                        help='The seed of the random number generator')
+    parser.add_argument(
+        '--save_summary_steps',
+        type=int,
+        required=True,
+        help='The number of gap steps to save summary during training')
+    parser.add_argument(
+        '--eval_metric_name',
+        type=int,
+        required=True,
+        help='The name of the metric to be evaluated for validation and test')
+
     return parser
+
+
+def create_configs(args):
+    wandb_config = {
+        'backbone_type': args.backbone_type,
+        'feature_target_layer': args.feature_target_layer,
+        'distracting_block': args.distracting_block,
+        'center_bias_weight': args.center_bias_weight,
+        'GB_kernel_size': args.GB_kernel_size,
+        'GB_sigma': args.GB_sigma,
+        'learning_rate': args.learning_rate,
+        'batch_size': args.batch_size,
+        'epochs': args.epochs,
+        'pretrained': args.pretrained,
+        'feature_channels_num': args.feature_channels_num,
+        'feature_h': args.feature_h,
+        'feature_w': args.feature_w,
+        'wrap_size': args.wrap_size,
+        'seed': args.seed,
+        'eval_metric_name': args.eval_metric_name
+    }
+
+    trainer_config = {
+        'cuda': torch.cuda.is_available(),
+        'save_dir': args.save_dir,
+        'epochs': args.epochs,
+        'save_summary_steps': args.save_summary_steps,
+        'eval_metric_name': args.eval_metric_name
+    }
+
+    return wandb_config, trainer_config
 
 
 if __name__ == '__main__':
     parser = set_parse()
     args = parser.parse_args()
+    wandb_config, trainer_config = create_configs(args)
+
+    # init wandb for logging
+    wandb.init(project=args.wandb_project)
+    wandb.config.update(wandb_config)
+
+    set_all_random_seed(args.seed)
+
     model = create_ASAIAANet(args)
-    print(model.regressor.parameters())
-    print(model.distractor.parameters())
+
+    wandb.finish()
+
+    # train

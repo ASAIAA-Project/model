@@ -39,9 +39,8 @@ class trainer:
         with tqdm(total=len(self.dataloader)) as t:
             for i, (data, target) in enumerate(self.dataloader):
                 if self.params.cuda:
-                    data, target = data.to(
-                        'cuda', non_blocking=True), target.to('cuda',
-                                                              non_blocking=True)
+                    data, target = data.to('cuda', non_blocking=True),
+                    target.to('cuda', non_blocking=True)
                 output = self.model(data)
 
                 # update the parameter of the regressor
