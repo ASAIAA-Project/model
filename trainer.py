@@ -12,13 +12,15 @@ from pathlib2 import Path
 from tqdm import tqdm
 
 
-class trainer:
-
-    def __init__(self, model, optimizer_R, loss_fn_R, loss_fn_D,
+class Trainer:
+    def __init__(self, model, optimizer_R, optimizer_D, loss_fn_R, loss_fn_D,
                  train_dataloader, val_dataloader, test_dataloader, metrics,
                  params, save_dir):
         self.model = model
-        self.optimizer = optimizer_R
+        if params['cuda']:
+            self.model.cuda()
+        self.optimizer_R = optimizer_R
+        self.optimizer_D = optimizer_D
         self.loss_fn_R = loss_fn_R
         self.loss_fn_D = loss_fn_D
         self.dataloader = train_dataloader
@@ -38,30 +40,31 @@ class trainer:
 
         with tqdm(total=len(self.dataloader)) as t:
             for i, (data, target) in enumerate(self.dataloader):
-                if self.params.cuda:
-                    data, target = data.to('cuda', non_blocking=True),
-                    target.to('cuda', non_blocking=True)
+                if self.params['cuda']:
+                    data, target = data.to(
+                        'cuda', non_blocking=True), target.to('cuda',
+                                                              non_blocking=True)
                 output = self.model(data)
-
-                # update the parameter of the regressor
-                self.optimizer_R.zero_grad()
-                loss_R = self.loss_fn_R(output, target)
-                loss_R.backward()
-                self.optimizer_R.step()
 
                 # update the parameter of distractor
                 self.optimizer_D.zero_grad()
                 loss_D = self.loss_fn_D(output, target)
-                loss_D.backward()
+                loss_D.backward(retain_graph=True)
+                # update the parameter of the regressor
+                self.optimizer_R.zero_grad()
+                loss_R = self.loss_fn_R(output, target)
+                loss_R.backward()
                 self.optimizer_D.step()
+                self.optimizer_R.step()
+
                 # update the parameter of extractor with momentum
                 params_backbone_D = self.model.distractor.feature_extracter.state_dict(
                 )
                 params_backbone_R = self.model.regressor.backbone.state_dict()
                 for key in params_backbone_D.keys():
                     params_backbone_D[key] = params_backbone_D[key] * (
-                        1 - self.params.momentum_D_backbone
-                    ) + self.params.momentum_D_backbone * params_backbone_R[key]
+                        1 - self.params['momentum_D_backbone']) + self.params[
+                            'momentum_D_backbone'] * params_backbone_R[key]
                 self.model.distractor.feature_extracter.load_state_dict(
                     params_backbone_D)
 
@@ -69,7 +72,7 @@ class trainer:
                 del params_backbone_D
                 del params_backbone_R
 
-                if i % self.params.save_summary_steps == 0:
+                if i % self.params['save_summary_steps'] == 0:
                     # extract data from torch Variable, move to cpu, convert to numpy arrays
                     output = output.data.cpu().numpy()
                     target = target.data.cpu().numpy()
@@ -82,7 +85,7 @@ class trainer:
                     summary_batch['loss_D'] = loss_D.item()
                     summary_batch['loss_R'] = loss_R.item()
                     if len(self.dataloader
-                           ) - i < self.params.save_summary_steps:
+                           ) - i < self.params['save_summary_steps']:
                         wandb.log({'train': summary_batch}, commit=False)
                     else:
                         wandb.log({'train': summary_batch})
@@ -109,7 +112,7 @@ class trainer:
         summary = []
         with torch.no_grad():
             for data, target in self.val_dataloader:
-                if self.params.cuda:
+                if self.params['cuda']:
                     data, target = data.to(
                         'cuda', non_blocking=True), target.to('cuda',
                                                               non_blocking=True)
@@ -139,7 +142,7 @@ class trainer:
         summary = []
         with torch.no_grad():
             for data, target in self.test_dataloader:
-                if self.params.cuda:
+                if self.params['cuda']:
                     data, target = data.to(
                         'cuda', non_blocking=True), target.to('cuda',
                                                               non_blocking=True)
@@ -168,10 +171,10 @@ class trainer:
         if restore_path is not None:
             pass
         best_val_metric = 0.0
-        for epoch in range(self.params.epochs):
+        for epoch in range(self.params['epochs']):
             self.train_one_epoch()
             metrics = self.validate()
-            val_metric = metrics[self.params.eval_metric_name]
+            val_metric = metrics[self.params['eval_metric_name']]
             is_best = val_metric > best_val_metric
             if is_best:
                 best_val_metric = val_metric

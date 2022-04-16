@@ -3,13 +3,19 @@ import torch
 import wandb
 
 from pathlib2 import Path
+from torch.utils.data import DataLoader
 from torch import optim
+
+from dataset import AVADataset
+from trainer import Trainer
+from metrics import accuracy
+from loss import toy_loss_R, toy_loss_D
 from utils import set_all_random_seed
 from model import create_ASAIAANet
 
 
 def set_parse():
-    config_file_path = '/Users/zhangjunjie/model/config/config.yml'
+    config_file_path = './config/config.yml'
     # TODO: change the path into relative after testing
     parser = configargparse.ArgParser(
         config_file_parser_class=configargparse.YAMLConfigFileParser,
@@ -117,6 +123,10 @@ def set_parse():
         type=str,
         required=True,
         help='The name of the metric to be evaluated for validation and test')
+    parser.add_argument('--data_dir',
+                        type=str,
+                        required=True,
+                        help='The directory of the dataset')
 
     return parser
 
@@ -131,6 +141,8 @@ def create_configs(args):
         'GB_sigma': args.GB_sigma,
         'learning_rate_D': args.learning_rate_D,
         'learning_rate_R': args.learning_rate_R,
+        'weight_decay_R': args.weight_decay_R,
+        'L1_D': args.L1_D,
         'momentum_D_backbone': args.momentum_D_backbone,
         'batch_size': args.batch_size,
         'epochs': args.epochs,
@@ -145,10 +157,10 @@ def create_configs(args):
 
     trainer_config = {
         'cuda': torch.cuda.is_available(),
-        'save_dir': args.save_dir,
         'epochs': args.epochs,
         'save_summary_steps': args.save_summary_steps,
-        'eval_metric_name': args.eval_metric_name
+        'eval_metric_name': args.eval_metric_name,
+        'momentum_D_backbone': args.momentum_D_backbone
     }
 
     return wandb_config, trainer_config
@@ -169,8 +181,39 @@ if __name__ == '__main__':
     optimizer_R = optim.Adam(model.regressor.parameters(),
                              weight_decay=args.weight_decay_R,
                              lr=args.learning_rate_R)
-    optimizer_D = optim.Adam(model.discriminator.parameters(),
+    optimizer_D = optim.Adam(model.distractor.readout_net.parameters(),
                              lr=args.learning_rate_D)
+
+    data_dir = Path(args.data_dir)
+
+    train_data = AVADataset('new_train.pickle', data_dir, args.wrap_size)
+    train_dataloader = DataLoader(train_data,
+                                  batch_size=args.batch_size,
+                                  shuffle=True,
+                                  num_workers=2,
+                                  pin_memory=True)
+
+    val_data = AVADataset('new_val.pickle', data_dir, args.wrap_size)
+    val_dataloader = DataLoader(val_data,
+                                batch_size=args.batch_size,
+                                shuffle=False,
+                                num_workers=2,
+                                pin_memory=True)
+
+    test_data = AVADataset('new_test.pickle', data_dir, args.wrap_size)
+    test_dataloader = DataLoader(test_data,
+                                 batch_size=args.batch_size,
+                                 shuffle=False,
+                                 num_workers=2,
+                                 pin_memory=True)
+
+    metrics = {'accuracy': accuracy}
+
+    trainer = Trainer(model, optimizer_R, optimizer_D, toy_loss_D, toy_loss_R,
+                      train_dataloader, val_dataloader, test_dataloader,
+                      metrics, trainer_config, Path(args.save_dir))
+
+    trainer.train()
 
     # train
 

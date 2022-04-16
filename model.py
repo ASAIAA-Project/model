@@ -21,7 +21,6 @@ def create_ASAIAANet(model_config):
 
 
 class ReadoutNet(nn.Module):
-
     def __init__(self, feature_channels_num, feature_h, feature_w):
         super(ReadoutNet, self).__init__()
         self.net = nn.Sequential(
@@ -43,7 +42,6 @@ class ReadoutNet(nn.Module):
 
 
 class Finializer(nn.Module):
-
     def __init__(self, center_bias_weight=1, kernel_size=3, sigma=1):
         super(Finializer, self).__init__()
         # self.center_bias_weight = nn.Parameter(
@@ -61,7 +59,6 @@ class Finializer(nn.Module):
 
 
 class Distractor(nn.Module):
-
     def __init__(self, feature_extracter, finilializer, readout_net):
         super(Distractor, self).__init__()
         self.feature_extracter = feature_extracter
@@ -88,7 +85,6 @@ class Distractor(nn.Module):
 
 
 class Regressor(nn.Module):
-
     def __init__(self,
                  backbone_type='resnet18',
                  pretrained=True,
@@ -106,7 +102,6 @@ class Regressor(nn.Module):
 
 
 class ASAIAANet(nn.Module):
-
     def __init__(self, regressor, distractor, target_block):
         super(ASAIAANet, self).__init__()
         self.distractor = distractor
