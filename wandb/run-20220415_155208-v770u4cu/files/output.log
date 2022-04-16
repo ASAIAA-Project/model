@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "/Users/zhangjunjie/model/main.py", line 156, in <module>
+    model = create_ASAIAANet(args)
+  File "/Users/zhangjunjie/model/model.py", line 13, in create_ASAIAANet
+    model_config.weight_path)
+AttributeError: 'Namespace' object has no attribute 'weight_path'

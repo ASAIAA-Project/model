@@ -3,6 +3,7 @@ import torch
 import wandb
 
 from pathlib2 import Path
+from torch import optim
 from utils import set_all_random_seed
 from model import create_ASAIAANet
 
@@ -82,6 +83,30 @@ def set_parse():
                         type=int,
                         required=True,
                         help='The seed of the random number generator')
+    parser.add_argument('--learning_rate_D',
+                        type=float,
+                        required=True,
+                        help='The learning rate of the distractor')
+    parser.add_argument('--learning_rate_R',
+                        type=float,
+                        required=True,
+                        help='The learning rate of the regressor')
+    parser.add_argument('--weight_path',
+                        type=str,
+                        help='The path of saved weights')
+    parser.add_argument('--weight_decay_R',
+                        type=float,
+                        required=True,
+                        help='The weight decay factor of the regressor')
+    parser.add_argument('--L1_D',
+                        type=float,
+                        required=True,
+                        help='The L1 regularization factor of the distractor')
+    parser.add_argument(
+        '--momentum_D_backbone',
+        type=float,
+        required=True,
+        help='The momentum update factor of the discriminator backbone')
     parser.add_argument(
         '--save_summary_steps',
         type=int,
@@ -89,7 +114,7 @@ def set_parse():
         help='The number of gap steps to save summary during training')
     parser.add_argument(
         '--eval_metric_name',
-        type=int,
+        type=str,
         required=True,
         help='The name of the metric to be evaluated for validation and test')
 
@@ -104,7 +129,9 @@ def create_configs(args):
         'center_bias_weight': args.center_bias_weight,
         'GB_kernel_size': args.GB_kernel_size,
         'GB_sigma': args.GB_sigma,
-        'learning_rate': args.learning_rate,
+        'learning_rate_D': args.learning_rate_D,
+        'learning_rate_R': args.learning_rate_R,
+        'momentum_D_backbone': args.momentum_D_backbone,
         'batch_size': args.batch_size,
         'epochs': args.epochs,
         'pretrained': args.pretrained,
@@ -132,14 +159,19 @@ if __name__ == '__main__':
     args = parser.parse_args()
     wandb_config, trainer_config = create_configs(args)
 
+    set_all_random_seed(args.seed)
+
     # init wandb for logging
     wandb.init(project=args.wandb_project)
     wandb.config.update(wandb_config)
 
-    set_all_random_seed(args.seed)
-
     model = create_ASAIAANet(args)
-
-    wandb.finish()
+    optimizer_R = optim.Adam(model.regressor.parameters(),
+                             weight_decay=args.weight_decay_R,
+                             lr=args.learning_rate_R)
+    optimizer_D = optim.Adam(model.discriminator.parameters(),
+                             lr=args.learning_rate_D)
 
     # train
+
+    wandb.finish()

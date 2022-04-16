@@ -65,9 +65,12 @@ class Distractor(nn.Module):
     def __init__(self, feature_extracter, finilializer, readout_net):
         super(Distractor, self).__init__()
         self.feature_extracter = feature_extracter
-        self.feature_extracter.eval()
         self.readout_net = readout_net
         self.finilializer = finilializer
+
+        self.feature_extracter.eval()
+        for param in self.feature_extracter.parameters():
+            param.requires_grad = False
 
     def forward(self, x):
         with torch.no_grad():

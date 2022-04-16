@@ -18,3 +18,10 @@ wrap_size: 224
 seed: 42
 save_dir: ./experiments/1
 eval_metric_name: accuracy
+momentum_D_backbone: 0.001
+wandb_project: 542_test_exp
+learning_rate_D: 0.0001
+learning_rate_R: 0.0001
+weight_decay_R: 0.0001
+L1_D: 0.0001
+save_summary_steps: 100

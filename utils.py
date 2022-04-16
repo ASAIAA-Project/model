@@ -7,7 +7,8 @@ import random
 import numpy as np
 import os
 
-def set_all_random_seed(seed, rank= 0):
+
+def set_all_random_seed(seed, rank=0):
     """Set random seed.
     Args:
         seed (int): Nonnegative integer.
@@ -19,6 +20,10 @@ def set_all_random_seed(seed, rank= 0):
     np.random.seed(seed)
     torch.manual_seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
+
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
 
 class RunningAverage():
     """A simple class that maintains the running average of a quantity
@@ -97,7 +102,7 @@ def save_checkpoint(state, is_best, checkpoint):
         print("Checkpoint Directory exists! ")
     torch.save(state, filepath)
     if is_best:
-        shutil.copyfile(filepath, checkpoint / 'best.pth.tar'))
+        shutil.copyfile(filepath, checkpoint / 'best.pth.tar')
 
 
 def load_checkpoint(checkpoint, model, optimizer=None):

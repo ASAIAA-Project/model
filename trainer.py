@@ -54,6 +54,20 @@ class trainer:
                 loss_D = self.loss_fn_D(output, target)
                 loss_D.backward()
                 self.optimizer_D.step()
+                # update the parameter of extractor with momentum
+                params_backbone_D = self.model.distractor.feature_extracter.state_dict(
+                )
+                params_backbone_R = self.model.regressor.backbone.state_dict()
+                for key in params_backbone_D.keys():
+                    params_backbone_D[key] = params_backbone_D[key] * (
+                        1 - self.params.momentum_D_backbone
+                    ) + self.params.momentum_D_backbone * params_backbone_R[key]
+                self.model.distractor.feature_extracter.load_state_dict(
+                    params_backbone_D)
+
+                # save memory
+                del params_backbone_D
+                del params_backbone_R
 
                 if i % self.params.save_summary_steps == 0:
                     # extract data from torch Variable, move to cpu, convert to numpy arrays

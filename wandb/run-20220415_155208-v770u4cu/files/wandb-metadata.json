@@ -1,0 +1,22 @@
+{
+    "os": "macOS-10.16-x86_64-i386-64bit",
+    "python": "3.9.5",
+    "heartbeatAt": "2022-04-15T22:52:09.599863",
+    "startedAt": "2022-04-15T22:52:08.516271",
+    "docker": null,
+    "cpu_count": 10,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "/Users/zhangjunjie/model/main.py",
+    "codePath": "main.py",
+    "git": {
+        "remote": "git@github.com:ASAIAA-Project/model.git",
+        "commit": "5792b14d9db3f9d78f10600422b5fd7c6a122080"
+    },
+    "email": null,
+    "root": "/Users/zhangjunjie/model",
+    "host": "zhangjunjies-MacBook-Pro.local",
+    "username": "zhangjunjie",
+    "executable": "/Users/zhangjunjie/opt/miniconda3/bin/python"
+}
