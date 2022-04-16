@@ -8,11 +8,12 @@ import utils
 
 import numpy as np
 
-from pathlib2 import Path
 from tqdm import tqdm
+from torch.cuda.amp import autocast as autocast
 
 
 class Trainer:
+
     def __init__(self, model, optimizer_R, optimizer_D, loss_fn_R, loss_fn_D,
                  train_dataloader, val_dataloader, test_dataloader, metrics,
                  params, save_dir):
