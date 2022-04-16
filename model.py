@@ -29,12 +29,12 @@ class ReadoutNet(nn.Module):
                  nn.LayerNorm([feature_channels_num, feature_h, feature_w])),
                 ('conv0', nn.Conv2d(feature_channels_num,
                                     128, (1, 1),
-                                    bias=True)),
-                ('softplus0', nn.Softplus()),
+                                    bias=True)), ('softplus0', nn.Softplus()),
                 ('layernorm1', nn.LayerNorm([128, feature_h, feature_w])),
                 ('conv1', nn.Conv2d(128, 16, (1, 1), bias=True)),
                 ('softplus1', nn.Softplus()),
                 ('conv2', nn.Conv2d(16, 1, (1, 1), bias=True)),
+                ('sigmoid', nn.Sigmoid())
             ]))
 
     def forward(self, x):
