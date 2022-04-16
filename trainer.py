@@ -54,19 +54,19 @@ class Trainer:
                 with autocast(enabled=self.params['amp']):
                     output, mask = self.model(data)
                     # update the parameter of distractor
+                    loss_R = self.loss_fn_R(output, target)
                     loss_D = self.loss_fn_D(
                         output,
                         target,
                         mask,
                     )
-                    loss_R = self.loss_fn_R(output, target)
 
-                self.scaler.scale(loss_D).backward(retain_graph=True)
-                self.scaler.scale(loss_R).backward()
+                self.scaler.scale(loss_R).backward(retain_graph=True)
+                self.scaler.scale(loss_D).backward()
 
-                self.scaler.unscale_(self.optimizer_D)
-                self.scaler.step(self.optimizer_D)
+                self.scaler.unscale_(self.optimizer_R)
                 self.scaler.step(self.optimizer_R)
+                self.scaler.step(self.optimizer_D)
                 self.scaler.update()
 
                 # update the parameter of extractor with momentum

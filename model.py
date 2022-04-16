@@ -98,7 +98,10 @@ class Regressor(nn.Module):
             self.backbone.load_state_dict(torch.load(weights_path))
 
     def forward(self, x):
-        return self.backbone(x)
+        x = self.backbone(x)
+        x[:, 0] = x[:, 0] * 9 + 1
+        x[:, 1] = x * 9
+        return x
 
 
 class ASAIAANet(nn.Module):

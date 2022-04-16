@@ -55,7 +55,6 @@ def set_logger(log_path):
         log_path: (string) where to log
     """
     logger = logging.getLogger()
-    logger.setLevel(logging.ERROR)
 
     if not logger.handlers:
         # Logging to a file

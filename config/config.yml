@@ -23,7 +23,7 @@ wandb_project: 542_test_exp
 learning_rate_D: 0.0001
 learning_rate_R: 0.0001
 weight_decay_R: 0.0001
-L1_D: 0.001
+L1_D: 0.01
 save_summary_steps: 100
 data_dir: ./AVA
 amp: False
