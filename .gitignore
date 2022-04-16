@@ -1,3 +1,5 @@
 .vscode/settings.json
 test/
 __pycache__/
+wandb/
+.DS_Store
