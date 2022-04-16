@@ -118,4 +118,4 @@ class ASAIAANet(nn.Module):
                 x = block(x)
                 if name == self.target_block:
                     x = x * mask + x
-        return x
+        return x, mask

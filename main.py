@@ -9,14 +9,13 @@ from torch import optim
 from dataset import AVADataset
 from trainer import Trainer
 from metrics import accuracy
-from loss import toy_loss_R, toy_loss_D
+from loss import toy_loss_R, ToyLossD
 from utils import set_all_random_seed
 from model import create_ASAIAANet
 
 
 def set_parse():
     config_file_path = './config/config.yml'
-    # TODO: change the path into relative after testing
     parser = configargparse.ArgParser(
         config_file_parser_class=configargparse.YAMLConfigFileParser,
         default_config_files=[config_file_path])
@@ -127,6 +126,10 @@ def set_parse():
                         type=str,
                         required=True,
                         help='The directory of the dataset')
+    parser.add_argument('--amp',
+                        type=bool,
+                        required=True,
+                        help='Whether to use automatic mixed precision')
 
     return parser
 
@@ -152,7 +155,8 @@ def create_configs(args):
         'feature_w': args.feature_w,
         'wrap_size': args.wrap_size,
         'seed': args.seed,
-        'eval_metric_name': args.eval_metric_name
+        'eval_metric_name': args.eval_metric_name,
+        'amp': args.amp and torch.cuda.is_available()
     }
 
     trainer_config = {
@@ -160,7 +164,8 @@ def create_configs(args):
         'epochs': args.epochs,
         'save_summary_steps': args.save_summary_steps,
         'eval_metric_name': args.eval_metric_name,
-        'momentum_D_backbone': args.momentum_D_backbone
+        'momentum_D_backbone': args.momentum_D_backbone,
+        'amp': args.amp and torch.cuda.is_available()
     }
 
     return wandb_config, trainer_config
@@ -209,7 +214,8 @@ if __name__ == '__main__':
 
     metrics = {'accuracy': accuracy}
 
-    trainer = Trainer(model, optimizer_R, optimizer_D, toy_loss_D, toy_loss_R,
+    toy_loss_D = ToyLossD(args.L1_D)
+    trainer = Trainer(model, optimizer_R, optimizer_D, toy_loss_R, toy_loss_D,
                       train_dataloader, val_dataloader, test_dataloader,
                       metrics, trainer_config, Path(args.save_dir))
 

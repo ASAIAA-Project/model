@@ -28,7 +28,6 @@ def set_all_random_seed(seed, rank=0):
 class RunningAverage():
     """A simple class that maintains the running average of a quantity
     """
-
     def __init__(self):
         self.steps = 0
         self.total = 0
@@ -78,6 +77,8 @@ def save_dict_to_json(d, json_path):
         d: (dict) of float-castable values (np.float, int, float, etc.)
         json_path: (string) path to json file
     """
+    if not json_path.parent.exists():
+        json_path.parent.mkdir(parents=True)
     with open(json_path, 'w') as f:
         # We need to convert the values to float for json (it doesn't accept np.array, np.float, )
         d = {k: float(v) for k, v in d.items()}
@@ -98,14 +99,14 @@ def save_checkpoint(state, is_best, checkpoint):
         print("Checkpoint Directory does not exist! Making directory {}".format(
             checkpoint))
         checkpoint.mkdir(parent=True)
-    else:
-        print("Checkpoint Directory exists! ")
+
+    filepath = str(filepath)
     torch.save(state, filepath)
     if is_best:
         shutil.copyfile(filepath, checkpoint / 'best.pth.tar')
 
 
-def load_checkpoint(checkpoint, model, optimizer=None):
+def load_checkpoint(checkpoint_path, model, optimizer_R=None, optimizer_D=None):
     """Loads model parameters (state_dict) from file_path. If optimizer is provided, loads state_dict of
     optimizer assuming it is present in checkpoint.
 
@@ -114,12 +115,15 @@ def load_checkpoint(checkpoint, model, optimizer=None):
         model: (torch.nn.Module) model for which the parameters are loaded
         optimizer: (torch.optim) optional: resume optimizer from checkpoint
     """
-    if not checkpoint.exists():
-        raise ("File doesn't exist {}".format(checkpoint))
-    checkpoint = torch.load(checkpoint)
+    if not checkpoint_path.exists():
+        raise ("File doesn't exist {}".format(checkpoint_path))
+    checkpoint_path = str(checkpoint_path)
+    checkpoint = torch.load(checkpoint_path)
     model.load_state_dict(checkpoint['state_dict'])
 
-    if optimizer:
-        optimizer.load_state_dict(checkpoint['optim_dict'])
+    if optimizer_R:
+        optimizer_R.load_state_dict(checkpoint['optim_R_dict'])
+    if optimizer_D:
+        optimizer_D.load_state_dict(checkpoint['optim_D_dict'])
 
     return checkpoint

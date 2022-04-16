@@ -1,6 +1,7 @@
 """Train the model"""
 
 import logging
+from pytest import param
 import wandb
 import torch
 
@@ -9,17 +10,18 @@ import utils
 import numpy as np
 
 from tqdm import tqdm
-from torch.cuda.amp import autocast as autocast
+from torch.cuda.amp import autocast
+from torch.cuda.amp import GradScaler
 
 
 class Trainer:
-
     def __init__(self, model, optimizer_R, optimizer_D, loss_fn_R, loss_fn_D,
                  train_dataloader, val_dataloader, test_dataloader, metrics,
                  params, save_dir):
         self.model = model
         if params['cuda']:
             self.model.cuda()
+        self.scaler = GradScaler(params['amp'])
         self.optimizer_R = optimizer_R
         self.optimizer_D = optimizer_D
         self.loss_fn_R = loss_fn_R
@@ -45,18 +47,27 @@ class Trainer:
                     data, target = data.to(
                         'cuda', non_blocking=True), target.to('cuda',
                                                               non_blocking=True)
-                output = self.model(data)
 
-                # update the parameter of distractor
                 self.optimizer_D.zero_grad()
-                loss_D = self.loss_fn_D(output, target)
-                loss_D.backward(retain_graph=True)
-                # update the parameter of the regressor
                 self.optimizer_R.zero_grad()
-                loss_R = self.loss_fn_R(output, target)
-                loss_R.backward()
-                self.optimizer_D.step()
-                self.optimizer_R.step()
+
+                with autocast(enabled=self.params['amp']):
+                    output, mask = self.model(data)
+                    # update the parameter of distractor
+                    loss_D = self.loss_fn_D(
+                        output,
+                        target,
+                        mask,
+                    )
+                    loss_R = self.loss_fn_R(output, target)
+
+                self.scaler.scale(loss_D).backward(retain_graph=True)
+                self.scaler.scale(loss_R).backward()
+
+                self.scaler.unscale_(self.optimizer_D)
+                self.scaler.step(self.optimizer_D)
+                self.scaler.step(self.optimizer_R)
+                self.scaler.update()
 
                 # update the parameter of extractor with momentum
                 params_backbone_D = self.model.distractor.feature_extracter.state_dict(
@@ -100,7 +111,7 @@ class Trainer:
                 t.update()
 
         metrics_mean = {
-            metric: np.mean([x[metric] for x in summary_batch])
+            metric: np.mean([x[metric] for x in summary])
             for metric in summary[0].keys()
         }
 
@@ -112,7 +123,7 @@ class Trainer:
         self.model.eval()
         summary = []
         with torch.no_grad():
-            for data, target in self.val_dataloader:
+            for data, target in tqdm(self.val_dataloader):
                 if self.params['cuda']:
                     data, target = data.to(
                         'cuda', non_blocking=True), target.to('cuda',
@@ -129,7 +140,7 @@ class Trainer:
                 summary.append(summary_batch)
 
         metrics_mean = {
-            metric: np.mean([x[metric] for x in summary_batch])
+            metric: np.mean([x[metric] for x in summary])
             for metric in self.metrics.keys()
         }
         wandb.log({'val': metrics_mean})
@@ -142,7 +153,7 @@ class Trainer:
         self.model.eval()
         summary = []
         with torch.no_grad():
-            for data, target in self.test_dataloader:
+            for data, target in tqdm(self.test_dataloader):
                 if self.params['cuda']:
                     data, target = data.to(
                         'cuda', non_blocking=True), target.to('cuda',
@@ -159,7 +170,7 @@ class Trainer:
                 summary.append(summary_batch)
 
         metrics_mean = {
-            metric: np.mean([x[metric] for x in summary_batch])
+            metric: np.mean([x[metric] for x in summary])
             for metric in self.metrics.keys()
         }
         wandb.log({'test': metrics_mean})
@@ -188,7 +199,8 @@ class Trainer:
                 {
                     'epoch': epoch + 1,
                     'state_dict': self.model.state_dict(),
-                    'optim_dict': self.optimizer.state_dict()
+                    'optim_R_dict': self.optimizer_R.state_dict(),
+                    'optim_D_dict': self.optimizer_D.state_dict()
                 },
                 is_best=is_best,
                 checkpoint=self.save_dir)
