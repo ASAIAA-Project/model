@@ -1,7 +1,6 @@
 """Train the model"""
 
 import logging
-from pytest import param
 import wandb
 import torch
 
@@ -48,25 +47,15 @@ class Trainer:
                         'cuda', non_blocking=True), target.to('cuda',
                                                               non_blocking=True)
 
-                self.optimizer_D.zero_grad()
                 self.optimizer_R.zero_grad()
 
                 with autocast(enabled=self.params['amp']):
-                    output, mask = self.model(data)
-                    # update the parameter of distractor
-                    loss_R = self.loss_fn_R(output, target)
-                    loss_D = self.loss_fn_D(
-                        output,
-                        target,
-                        mask,
-                    )
+                    output, _ = self.model(data)
+                    loss_R = self.loss_fn_R(target, output)
 
-                self.scaler.scale(loss_R).backward(retain_graph=True)
-                self.scaler.scale(loss_D).backward()
-
+                self.scaler.scale(loss_R).backward()
                 self.scaler.unscale_(self.optimizer_R)
                 self.scaler.step(self.optimizer_R)
-                self.scaler.step(self.optimizer_D)
                 self.scaler.update()
 
                 # update the parameter of extractor with momentum
@@ -83,6 +72,17 @@ class Trainer:
                 # save memory
                 del params_backbone_D
                 del params_backbone_R
+
+                self.optimizer_D.zero_grad()
+
+                with autocast(enabled=self.params['amp']):
+                    output, mask = self.model(data)
+                    loss_D = self.loss_fn_D(target, output, mask)
+
+                self.scaler.scale(loss_D).backward()
+                self.scaler.unscale_(self.optimizer_D)
+                self.scaler.step(self.optimizer_D)
+                self.scaler.update()
 
                 if i % self.params['save_summary_steps'] == 0:
                     # extract data from torch Variable, move to cpu, convert to numpy arrays

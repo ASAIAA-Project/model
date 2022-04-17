@@ -100,7 +100,7 @@ class Regressor(nn.Module):
     def forward(self, x):
         x = self.backbone(x)
         x[:, 0] = x[:, 0] * 9 + 1
-        x[:, 1] = x * 9
+        x[:, 1] = x[:, 1] * 9
         return x
 
 
@@ -121,4 +121,6 @@ class ASAIAANet(nn.Module):
                 x = block(x)
                 if name == self.target_block:
                     x = x * mask + x
+        x[:, 0] = x[:, 0] * 9 + 1
+        x[:, 1] = x[:, 1] * 9
         return x, mask

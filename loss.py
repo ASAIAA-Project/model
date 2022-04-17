@@ -4,7 +4,7 @@ def l1_penalty(params):
 
 
 def toy_loss_R(y_true, y_pred):
-    return ((y_true - y_pred)**2).mean()**0.5
+    return ((y_true[:, 0] - y_pred[:, 0])**2).mean()**0.5
 
 
 # remeber to include the L1 penelty
@@ -13,6 +13,6 @@ class ToyLossD:
         self.L1_D = L1_D
 
     def __call__(self, y_true, y_pred, mask):
-        loss = -((y_true - y_pred)**2).mean()**0.5
+        loss = -((y_true[:, 0] - y_pred[:, 0])**2).mean()**0.5
         loss += self.L1_D * mask.abs().sum()
         return loss
