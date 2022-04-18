@@ -1,15 +1,14 @@
 import configargparse
 import torch
 import wandb
-import math
 
 from pathlib2 import Path
 from torch.utils.data import DataLoader
 from torch import optim
 
-from dataset import AVADataset
+from dataset import AVADatasetEmp
 from trainer import Trainer
-from metrics import accuracy
+from metrics import accuracy_ten
 from loss import toy_loss_R, ToyLossD, trunc_cjs_loss_R, TruncCJSLossD
 from utils import set_all_random_seed
 from model import create_ASAIAANet
@@ -192,33 +191,28 @@ if __name__ == '__main__':
 
     data_dir = Path(args.data_dir)
 
-    train_data = AVADataset('new_train.pickle', data_dir, args.wrap_size)
+    train_data = AVADatasetEmp('train.pickle', data_dir, args.wrap_size)
     train_dataloader = DataLoader(train_data,
                                   batch_size=args.batch_size,
                                   shuffle=True,
                                   num_workers=2,
                                   pin_memory=True)
 
-    val_data = AVADataset('new_val.pickle', data_dir, args.wrap_size)
+    val_data = AVADatasetEmp('val.pickle', data_dir, args.wrap_size)
     val_dataloader = DataLoader(val_data,
                                 batch_size=args.batch_size,
                                 shuffle=False,
                                 num_workers=2,
                                 pin_memory=True)
 
-    test_data = AVADataset('new_test.pickle', data_dir, args.wrap_size)
+    test_data = AVADatasetEmp('test.pickle', data_dir, args.wrap_size)
     test_dataloader = DataLoader(test_data,
                                  batch_size=args.batch_size,
                                  shuffle=False,
                                  num_workers=2,
                                  pin_memory=True)
 
-    metrics = {'accuracy': accuracy}
-
-    #toy_loss_D = ToyLossD(args.L1_D)
-    #trainer = Trainer(model, optimizer_R, optimizer_D, toy_loss_R, toy_loss_D,
-    #                  train_dataloader, val_dataloader, test_dataloader,
-    #                  metrics, trainer_config, Path(args.save_dir))
+    metrics = {'accuracy': accuracy_ten}
 
     trunc_cjs_loss_D = TruncCJSLossD(args.L1_D)
     trainer = Trainer(model, optimizer_R, optimizer_D, trunc_cjs_loss_R,

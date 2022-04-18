@@ -93,7 +93,7 @@ class Regressor(nn.Module):
 
         self.backbone = models.__dict__[backbone_type](pretrained=pretrained)
         self.backbone.fc = nn.Sequential(
-            nn.Linear(self.backbone.fc.in_features, 2), nn.ReLU())
+            nn.Linear(self.backbone.fc.in_features, 10), nn.Softmax())
 
         if weights_path:
             self.backbone.load_state_dict(torch.load(weights_path))
