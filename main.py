@@ -221,10 +221,10 @@ if __name__ == '__main__':
     #                  metrics, trainer_config, Path(args.save_dir))
 
     trunc_cjs_loss_D = TruncCJSLossD(args.L1_D)
-    trainer = Trainer(model, optimizer_R, optimizer_D, trunc_cjs_loss_R, trunc_cjs_loss_D,
-                      train_dataloader, val_dataloader, test_dataloader,
-                      metrics, trainer_config, Path(args.save_dir))
-
+    trainer = Trainer(model, optimizer_R, optimizer_D, trunc_cjs_loss_R,
+                      trunc_cjs_loss_D, train_dataloader, val_dataloader,
+                      test_dataloader, metrics, trainer_config,
+                      Path(args.save_dir))
 
     trainer.train()
 

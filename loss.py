@@ -5,25 +5,20 @@ INV_SQRT_TWO = 1 / math.sqrt(2)
 INV_SQRT_TWOPI = 1 / math.sqrt(2 * math.pi)
 
 
-def l1_penalty(params):
-    l1_norm = sum(p.abs().sum() for p in params)
-    return l1_norm
-
-
 def big_phi(x):
     return 0.5 * (1 + (x * INV_SQRT_TWO).erf())
 
 
 def trunc_cdf_ava(x, mu, sigma, a=0.5, b=10.5):
     def normalize(val):
-        return (val - mu) / sigma
+        return (val - mu) / (sigma + 1e-4)
 
     big_phi_x = big_phi(normalize(x))
     big_phi_a = big_phi(normalize(torch.tensor(a)))
     big_phi_b = big_phi(normalize(torch.tensor(b)))
     cdf = (big_phi_x - big_phi_a) / (big_phi_b - big_phi_a + 1e-4)
     if torch.sum(torch.isnan(cdf)):
-        print(x, mu, sigma, a, b)
+        print(cdf)
     return cdf
 
 
@@ -39,10 +34,10 @@ def cjs_loss(y_true, y_pred):
         y1 = y1s[i]
         y2 = y2s[i]
         ys = 0.5 * (y1 + y2)
-        loss += 0.5 * y1 * (y1 + 1e-4 / ys + 1e-4).log()
-        loss += 0.5 * y2 * (y2 + 1e-4 / ys + 1e-4).log()
+        loss += 0.5 * y1 * (y1 / ys + 1).log()
+        loss += 0.5 * y2 * (y2 / ys + 1).log()
         if torch.sum(torch.isnan(loss)):
-            print(min(y1), min(y2), min(ys))
+            print(loss)
     return loss.mean()
 
 
@@ -75,5 +70,4 @@ class ToyLossD:
     def __call__(self, y_true, y_pred, mask):
         loss = -((y_true[:, 0] - y_pred[:, 0])**2).mean()**0.5
         loss += self.L1_D * mask.abs().sum()
-        print(loss)
         return loss

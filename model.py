@@ -92,15 +92,14 @@ class Regressor(nn.Module):
         super(Regressor, self).__init__()
 
         self.backbone = models.__dict__[backbone_type](pretrained=pretrained)
-        self.backbone.fc = nn.Linear(self.backbone.fc.in_features, 2)
+        self.backbone.fc = nn.Sequential(
+            nn.Linear(self.backbone.fc.in_features, 2), nn.ReLU())
 
         if weights_path:
             self.backbone.load_state_dict(torch.load(weights_path))
 
     def forward(self, x):
         x = self.backbone(x)
-        x[:, 0] = x[:, 0] * 9 + 1
-        x[:, 1] = x[:, 1] * 9
         return x
 
 
@@ -121,6 +120,4 @@ class ASAIAANet(nn.Module):
                 x = block(x)
                 if name == self.target_block:
                     x = x * mask + x
-        x[:, 0] = x[:, 0] * 9 + 1
-        x[:, 1] = x[:, 1] * 9
         return x, mask
