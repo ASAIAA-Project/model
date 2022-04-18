@@ -1,6 +1,7 @@
 import configargparse
 import torch
 import wandb
+import math
 
 from pathlib2 import Path
 from torch.utils.data import DataLoader
@@ -9,7 +10,7 @@ from torch import optim
 from dataset import AVADataset
 from trainer import Trainer
 from metrics import accuracy
-from loss import toy_loss_R, ToyLossD
+from loss import toy_loss_R, ToyLossD, trunc_cjs_loss_R, TruncCJSLossD
 from utils import set_all_random_seed
 from model import create_ASAIAANet
 
@@ -214,10 +215,16 @@ if __name__ == '__main__':
 
     metrics = {'accuracy': accuracy}
 
-    toy_loss_D = ToyLossD(args.L1_D)
-    trainer = Trainer(model, optimizer_R, optimizer_D, toy_loss_R, toy_loss_D,
+    #toy_loss_D = ToyLossD(args.L1_D)
+    #trainer = Trainer(model, optimizer_R, optimizer_D, toy_loss_R, toy_loss_D,
+    #                  train_dataloader, val_dataloader, test_dataloader,
+    #                  metrics, trainer_config, Path(args.save_dir))
+
+    trunc_cjs_loss_D = TruncCJSLossD(args.L1_D)
+    trainer = Trainer(model, optimizer_R, optimizer_D, trunc_cjs_loss_R, trunc_cjs_loss_D,
                       train_dataloader, val_dataloader, test_dataloader,
                       metrics, trainer_config, Path(args.save_dir))
+
 
     trainer.train()
 
