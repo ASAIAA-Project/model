@@ -9,7 +9,7 @@ from torch import optim
 from dataset import AVADatasetEmp
 from trainer import Trainer
 from metrics import accuracy_ten
-from loss import toy_loss_R, ToyLossD, trunc_cjs_loss_R, TruncCJSLossD
+from loss import cjs_loss_10_R, CJSLoss10D
 from utils import set_all_random_seed
 from model import create_ASAIAANet
 
@@ -214,9 +214,9 @@ if __name__ == '__main__':
 
     metrics = {'accuracy': accuracy_ten}
 
-    trunc_cjs_loss_D = TruncCJSLossD(args.L1_D)
-    trainer = Trainer(model, optimizer_R, optimizer_D, trunc_cjs_loss_R,
-                      trunc_cjs_loss_D, train_dataloader, val_dataloader,
+    cjs_loss_10_D = CJSLoss10D(args.L1_D)
+    trainer = Trainer(model, optimizer_R, optimizer_D, cjs_loss_10_R,
+                      cjs_loss_10_D, train_dataloader, val_dataloader,
                       test_dataloader, metrics, trainer_config,
                       Path(args.save_dir))
 
