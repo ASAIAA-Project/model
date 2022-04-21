@@ -1,5 +1,6 @@
 """Train the model"""
 
+from ctypes import util
 import logging
 import wandb
 import torch
@@ -151,6 +152,7 @@ class Trainer:
         return metrics_mean
 
     def test(self):
+        utils.load_best_checkpoint(self.save_dir, self.model)
         self.model.eval()
         summary = []
         with torch.no_grad():
@@ -181,10 +183,13 @@ class Trainer:
         return metrics_mean
 
     def train(self, restore_path=None):
+        start_epoch = 0
         if restore_path is not None:
-            pass
+            start_epoch = utils.load_checkpoint(restore_path, self.model,
+                                                self.optimizer_R,
+                                                self.optimizer_D)
         best_val_metric = 0.0
-        for epoch in range(self.params['epochs']):
+        for epoch in range(start_epoch, self.params['epochs']):
             self.train_one_epoch()
             metrics = self.validate()
             val_metric = metrics[self.params['eval_metric_name']]

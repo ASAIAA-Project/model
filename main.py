@@ -78,7 +78,7 @@ def set_parse():
                         help='The directory to save this experiment')
     parser.add_argument('--wrap_size',
                         type=int,
-                        required=True，
+                        required=True,
                         help='The size of the image to be wrapped')
     parser.add_argument('--wandb_project',
                         type=str,
@@ -130,6 +130,10 @@ def set_parse():
                         type=bool,
                         required=True,
                         help='Whether to use automatic mixed precision')
+    parser.add_argument(
+        '--restore_path',
+        type=str,
+        help='the path to the saved checkpoint file for restore training')
 
     return parser
 
@@ -178,8 +182,10 @@ if __name__ == '__main__':
 
     set_all_random_seed(args.seed)
 
+    wandb_resume = True if args.restore_path is not None else False
+
     # init wandb for logging
-    wandb.init(project=args.wandb_project)
+    wandb.init(project=args.wandb_project, resume=wandb_resume)
     wandb.config.update(wandb_config)
 
     model = create_ASAIAANet(args)
@@ -220,7 +226,7 @@ if __name__ == '__main__':
                       test_dataloader, metrics, trainer_config,
                       Path(args.save_dir))
 
-    trainer.train()
+    trainer.train(restore_path=args.restore_path)
     trainer.test()
 
     # train

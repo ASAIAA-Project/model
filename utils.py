@@ -1,6 +1,8 @@
 import json
 import logging
 import shutil
+from subprocess import check_output
+from tabnanny import check
 import torch
 import random
 
@@ -28,6 +30,7 @@ def set_all_random_seed(seed, rank=0):
 class RunningAverage():
     """A simple class that maintains the running average of a quantity
     """
+
     def __init__(self):
         self.steps = 0
         self.total = 0
@@ -105,6 +108,17 @@ def save_checkpoint(state, is_best, checkpoint):
         shutil.copyfile(filepath, checkpoint / 'best.pth.tar')
 
 
+def load_best_checkpoint(save_dir, model):
+    checkpoint_path = save_dir / 'best.pth.tar'
+    if not checkpoint_path.exists():
+        print("File doesn't exist {}".format(checkpoint_path))
+    else:
+        checkpoint = torch.load(checkpoint_path)
+        model.load_state_dict(checkpoint['state_dict'])
+
+    return
+
+
 def load_checkpoint(checkpoint_path, model, optimizer_R=None, optimizer_D=None):
     """Loads model parameters (state_dict) from file_path. If optimizer is provided, loads state_dict of
     optimizer assuming it is present in checkpoint.
@@ -125,4 +139,4 @@ def load_checkpoint(checkpoint_path, model, optimizer_R=None, optimizer_D=None):
     if optimizer_D:
         optimizer_D.load_state_dict(checkpoint['optim_D_dict'])
 
-    return checkpoint
+    return checkpoint['epoch']
