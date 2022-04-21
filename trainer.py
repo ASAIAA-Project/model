@@ -14,6 +14,7 @@ from torch.cuda.amp import GradScaler
 
 
 class Trainer:
+
     def __init__(self, model, optimizer_R, optimizer_D, loss_fn_R, loss_fn_D,
                  train_dataloader, val_dataloader, test_dataloader, metrics,
                  params, save_dir):

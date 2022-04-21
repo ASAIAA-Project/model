@@ -8,7 +8,7 @@ from torch import optim
 
 from dataset import AVADatasetEmp
 from trainer import Trainer
-from metrics import accuracy_ten
+from metrics import accuracy_ten, accuracy_bi
 from loss import cjs_loss_10_R, CJSLoss10D
 from utils import set_all_random_seed
 from model import create_ASAIAANet
@@ -78,7 +78,7 @@ def set_parse():
                         help='The directory to save this experiment')
     parser.add_argument('--wrap_size',
                         type=int,
-                        required=True,
+                        required=True，
                         help='The size of the image to be wrapped')
     parser.add_argument('--wandb_project',
                         type=str,
@@ -212,7 +212,7 @@ if __name__ == '__main__':
                                  num_workers=2,
                                  pin_memory=True)
 
-    metrics = {'accuracy': accuracy_ten}
+    metrics = {'accuracy_ten': accuracy_ten, 'accuracy_bi': accuracy_bi}
 
     cjs_loss_10_D = CJSLoss10D(args.L1_D)
     trainer = Trainer(model, optimizer_R, optimizer_D, cjs_loss_10_R,
@@ -221,6 +221,7 @@ if __name__ == '__main__':
                       Path(args.save_dir))
 
     trainer.train()
+    trainer.test()
 
     # train
 
