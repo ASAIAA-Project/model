@@ -1,0 +1,31 @@
+backbone_type: resnet18
+feature_target_layer:
+  - model.6.1.conv1
+  - model.6.1.conv2
+  - model.6.0.conv2
+  - model.7.0.conv2
+feature_channels_num: 1280 # 256 + 256 + 256 + 512
+feature_h: 14
+feature_w: 14
+distracting_block: model.6
+pretrained: True
+GB_kernel_size: 3
+GB_sigma: 0.75
+batch_size: 256
+learning_rate: 0.01
+epochs: 30
+wrap_size: 224
+seed: 42
+save_dir: ./experiments/baseline
+eval_metric_name: accuracy
+momentum_D_backbone: 0.001
+wandb_project: 542_train_baseline
+learning_rate_D: 0.0001
+learning_rate_R: 0.0001
+weight_path: ./epoch-7.pth
+weight_decay_R: 1e-18
+L1_D: 0.1
+save_summary_steps: 100
+data_dir: ./AVA
+amp: False
+train_baseline: True
