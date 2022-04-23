@@ -229,6 +229,4 @@ if __name__ == '__main__':
     trainer.train(restore_path=args.restore_path)
     trainer.test()
 
-    # train
-
     wandb.finish()
