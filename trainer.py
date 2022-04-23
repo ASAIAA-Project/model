@@ -1,7 +1,3 @@
-"""Train the model"""
-
-from ctypes import util
-import logging
 import wandb
 import torch
 
@@ -15,10 +11,9 @@ from torch.cuda.amp import GradScaler
 
 
 class Trainer:
-
     def __init__(self, model, optimizer_R, optimizer_D, loss_fn_R, loss_fn_D,
                  train_dataloader, val_dataloader, test_dataloader, metrics,
-                 params, save_dir):
+                 save_dir, logger, params):
         self.model = model
         if params['cuda']:
             self.model.cuda()
@@ -33,6 +28,7 @@ class Trainer:
         self.metrics = metrics
         self.params = params
         self.save_dir = save_dir
+        self.logger = logger
 
     def train_one_epoch(self):
         self.model.train()
@@ -119,7 +115,10 @@ class Trainer:
 
         metrics_string = " ; ".join("{}: {:05.3f}".format(k, v)
                                     for k, v in metrics_mean.items())
-        logging.info("***** Train metrics: " + metrics_string)
+        if self.logger is not None:
+            self.logger.info("***** Train metrics: " + metrics_string)
+        else:
+            print("***** Train metrics: " + metrics_string)
 
     def validate(self):
         self.model.eval()
@@ -148,7 +147,10 @@ class Trainer:
         wandb.log({'val': metrics_mean})
         metrics_string = " ; ".join("{}: {:05.3f}".format(k, v)
                                     for k, v in metrics_mean.items())
-        logging.info("***** Val metrics: " + metrics_string)
+        if self.logger is not None:
+            self.logger.info("***** Val metrics: " + metrics_string)
+        else:
+            print("***** Val metrics: " + metrics_string)
         return metrics_mean
 
     def test(self):
@@ -179,7 +181,10 @@ class Trainer:
         wandb.log({'test': metrics_mean})
         metrics_string = " ; ".join("{}: {:05.3f}".format(k, v)
                                     for k, v in metrics_mean.items())
-        logging.info("***** Test metrics: " + metrics_string)
+        if self.logger is not None:
+            self.logger.info("***** Test metrics: " + metrics_string)
+        else:
+            print("***** Test metrics: " + metrics_string)
         return metrics_mean
 
     def train(self, restore_path=None):
@@ -196,7 +201,10 @@ class Trainer:
             is_best = val_metric > best_val_metric
             if is_best:
                 best_val_metric = val_metric
-                logging.info("- Found new best accuracy")
+                if self.logger is not None:
+                    self.logger.info("- Found new best accuracy")
+                else:
+                    print("- Found new best accuracy")
 
                 # Save best val metrics in a json file in the model directory
                 best_json_path = self.save_dir / "metrics_val_best_weights.json"

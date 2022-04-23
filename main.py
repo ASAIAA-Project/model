@@ -10,7 +10,7 @@ from dataset import AVADatasetEmp
 from trainer import Trainer
 from metrics import accuracy_ten, accuracy_bi
 from loss import cjs_loss_10_R, CJSLoss10D
-from utils import set_all_random_seed
+from utils import set_all_random_seed, set_logger
 from model import create_ASAIAANet
 
 
@@ -181,6 +181,7 @@ if __name__ == '__main__':
     wandb_config, trainer_config = create_configs(args)
 
     set_all_random_seed(args.seed)
+    logger = set_logger(Path(args.save_dir) / 'experiment.log')
 
     wandb_resume = True if args.restore_path is not None else False
 
@@ -221,10 +222,20 @@ if __name__ == '__main__':
     metrics = {'accuracy_ten': accuracy_ten, 'accuracy_bi': accuracy_bi}
 
     cjs_loss_10_D = CJSLoss10D(args.L1_D)
-    trainer = Trainer(model, optimizer_R, optimizer_D, cjs_loss_10_R,
-                      cjs_loss_10_D, train_dataloader, val_dataloader,
-                      test_dataloader, metrics, trainer_config,
-                      Path(args.save_dir))
+    trainer = Trainer(
+        model,
+        optimizer_R,
+        optimizer_D,
+        cjs_loss_10_R,
+        cjs_loss_10_D,
+        train_dataloader,
+        val_dataloader,
+        test_dataloader,
+        metrics,
+        Path(args.save_dir),
+        logger,
+        trainer_config,
+    )
 
     #trainer.train(restore_path=args.restore_path)
     trainer.test()
