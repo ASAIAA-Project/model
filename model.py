@@ -6,6 +6,7 @@ from einops import repeat
 from torchvision.models import feature_extraction
 from kornia import filters
 from collections import OrderedDict
+from NIMA_model import *
 
 
 def create_ASAIAANet(model_config):
@@ -91,11 +92,14 @@ class Regressor(nn.Module):
                  weights_path=None):
         super(Regressor, self).__init__()
 
-        self.backbone = models.__dict__[backbone_type](pretrained=pretrained)
-        self.backbone.fc = nn.Sequential(
-            nn.Linear(self.backbone.fc.in_features, 10), nn.Softmax(dim=1))
+        if weights_path is None:
+            self.backbone = models.__dict__[backbone_type](pretrained=pretrained)
+            self.backbone.fc = nn.Sequential(
+                nn.Linear(self.backbone.fc.in_features, 10), nn.Softmax())
 
-        if weights_path:
+        else:
+            base_model = models.resnet18(pretrained=True)
+            self.backbone = NIMA(base_model)
             self.backbone.load_state_dict(torch.load(weights_path))
 
     def forward(self, x):
@@ -113,7 +117,7 @@ class ASAIAANet(nn.Module):
     def forward(self, x):
         mask = self.distractor(x)
         for name, block in self.regressor.backbone.named_children():
-            if name == 'fc':
+            if name == 'fc' or name == 'classifier':
                 x = x.view(-1, 512)
                 x = block(x)
             else:

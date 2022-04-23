@@ -1,7 +1,6 @@
 import json
 import logging
 import shutil
-from subprocess import check_output
 from tabnanny import check
 import torch
 import random
@@ -42,7 +41,7 @@ class RunningAverage():
         return self.total / float(self.steps)
 
 
-def set_logger(log_path, level=logging.INFO):
+def set_logger(log_path):
     """Set the logger to log info in terminal and file `log_path`.
 
     In general, it is useful to have a logger so that every output to the terminal is saved
@@ -57,13 +56,10 @@ def set_logger(log_path, level=logging.INFO):
         log_path: (string) where to log
     """
     logger = logging.getLogger()
-    logger.setLevel(level)
 
     if not logger.handlers:
         # Logging to a file
-        if not log_path.parent.exists():
-            log_path.parent.mkdir(parents=True)
-        file_handler = logging.FileHandler(str(log_path))
+        file_handler = logging.FileHandler(log_path)
         file_handler.setFormatter(
             logging.Formatter('%(asctime)s:%(levelname)s: %(message)s'))
         logger.addHandler(file_handler)
@@ -72,8 +68,6 @@ def set_logger(log_path, level=logging.INFO):
         stream_handler = logging.StreamHandler()
         stream_handler.setFormatter(logging.Formatter('%(message)s'))
         logger.addHandler(stream_handler)
-
-    return logger
 
 
 def save_dict_to_json(d, json_path):
@@ -114,11 +108,11 @@ def save_checkpoint(state, is_best, checkpoint):
 
 def load_best_checkpoint(save_dir, model):
     checkpoint_path = save_dir / 'best.pth.tar'
+    checkpoint = str(checkpoint_path)
     if not checkpoint_path.exists():
-        print("File doesn't exist {}".format(checkpoint_path))
+        print("File doesn't exist {}".format(checkpoint))
     else:
-        print('loading best checkpoint at {}'.format(checkpoint_path))
-        checkpoint = torch.load(str(checkpoint_path))
+        checkpoint = torch.load(checkpoint)
         model.load_state_dict(checkpoint['state_dict'])
 
     return
@@ -136,7 +130,7 @@ def load_checkpoint(checkpoint_path, model, optimizer_R=None, optimizer_D=None):
     if not checkpoint_path.exists():
         raise ("File doesn't exist {}".format(checkpoint_path))
     checkpoint_path = str(checkpoint_path)
-    checkpoint = torch.load(checkpoint_path)
+    checkpoint = torch.load(str(checkpoint_path))
     model.load_state_dict(checkpoint['state_dict'])
 
     if optimizer_R:
@@ -144,4 +138,51 @@ def load_checkpoint(checkpoint_path, model, optimizer_R=None, optimizer_D=None):
     if optimizer_D:
         optimizer_D.load_state_dict(checkpoint['optim_D_dict'])
 
-    return checkpoint['epoch']
+    return checkpoint
+
+# helper functions for CAAM
+def norm_att_map(att_map):
+    _min = torch.min(att_map)
+    _max = torch.max(att_map)
+    att_norm = (att_map - _min) / (_max - _min)
+    return att_norm
+
+
+def cammed_image(image, mask, require_norm=False):
+    if require_norm:
+        mask = mask - np.min(mask)
+        mask = mask / np.max(mask)
+    heatmap = cv2.applyColorMap(np.uint8(255 * mask), cv2.COLORMAP_JET)
+    heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
+    heatmap = np.float32(heatmap) / 255
+    cam = heatmap + np.float32(image)
+    cam = cam / np.max(cam)
+    return heatmap * 255., cam * 255.
+
+
+def intensity_to_rgb(intensity, normalize=False):
+    """
+    Convert a 1-channel matrix of intensities to an RGB image employing a colormap.
+    This function requires matplotlib. See `matplotlib colormaps
+    <http://matplotlib.org/examples/color/colormaps_reference.html>`_ for a
+    list of available colormap.
+    Args:
+        intensity (np.ndarray): array of intensities such as saliency.
+        cmap (str): name of the colormap to use.
+        normalize (bool): if True, will normalize the intensity so that it has
+            minimum 0 and maximum 1.
+    Returns:
+        np.ndarray: an RGB float32 image in range [0, 255], a colored heatmap.
+    """
+    assert intensity.ndim == 2, intensity.shape
+    intensity = intensity.astype("float")
+
+    if normalize:
+        intensity -= intensity.min()
+        intensity /= intensity.max()
+
+    cmap = 'jet'
+    cmap = plt.get_cmap(cmap)
+    intensity = cmap(intensity)[..., :3]
+    return intensity.astype('float32') * 255.0
+

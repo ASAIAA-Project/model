@@ -8,14 +8,14 @@ from torch import optim
 
 from dataset import AVADatasetEmp
 from trainer import Trainer
-from metrics import accuracy_ten, accuracy_bi
+from metrics import *
 from loss import cjs_loss_10_R, CJSLoss10D
-from utils import set_all_random_seed, set_logger
+from utils import set_all_random_seed
 from model import create_ASAIAANet
 
 
 def set_parse():
-    config_file_path = './config/config.yml'
+    config_file_path = './config/config_ljj_test_baseline.yml'
     parser = configargparse.ArgParser(
         config_file_parser_class=configargparse.YAMLConfigFileParser,
         default_config_files=[config_file_path])
@@ -130,10 +130,16 @@ def set_parse():
                         type=bool,
                         required=True,
                         help='Whether to use automatic mixed precision')
+    parser.add_argument('--train_baseline',
+                        type=bool,
+                        help='Whether to train baseline or full ASAIAANet')
+    parser.add_argument('--test',
+                        type=bool,
+                        help='Whether to test or to train')
     parser.add_argument(
         '--restore_path',
         type=str,
-        help='the path to the saved checkpoint file for restore training')
+        help='the path to the saved checkpoint file for restore training')                    
 
     return parser
 
@@ -181,15 +187,13 @@ if __name__ == '__main__':
     wandb_config, trainer_config = create_configs(args)
 
     set_all_random_seed(args.seed)
-    logger = set_logger(Path(args.save_dir) / 'experiment.log')
-
-    wandb_resume = True if args.restore_path is not None else False
 
     # init wandb for logging
-    wandb.init(project=args.wandb_project, resume=wandb_resume)
+    wandb.init(project=args.wandb_project)
     wandb.config.update(wandb_config)
 
     model = create_ASAIAANet(args)
+    print(model)
     optimizer_R = optim.Adam(model.regressor.parameters(),
                              weight_decay=args.weight_decay_R,
                              lr=args.learning_rate_R)
@@ -214,30 +218,27 @@ if __name__ == '__main__':
 
     test_data = AVADatasetEmp('test.pickle', data_dir, args.wrap_size)
     test_dataloader = DataLoader(test_data,
-                                 batch_size=args.batch_size,
+                                 batch_size=1,
                                  shuffle=False,
                                  num_workers=2,
                                  pin_memory=True)
 
-    metrics = {'accuracy_ten': accuracy_ten, 'accuracy_bi': accuracy_bi}
+    metrics = {'accuracy_ten': accuracy_ten, 'accuracy_bi': accuracy_bi, 'accuracy': accuracy_ten}
 
     cjs_loss_10_D = CJSLoss10D(args.L1_D)
-    trainer = Trainer(
-        model,
-        optimizer_R,
-        optimizer_D,
-        cjs_loss_10_R,
-        cjs_loss_10_D,
-        train_dataloader,
-        val_dataloader,
-        test_dataloader,
-        metrics,
-        Path(args.save_dir),
-        logger,
-        trainer_config,
-    )
+    trainer = Trainer(model, optimizer_R, optimizer_D, cjs_loss_10_R,
+                      cjs_loss_10_D, train_dataloader, val_dataloader,
+                      test_dataloader, metrics, trainer_config,
+                      Path(args.save_dir))
 
-    #trainer.train(restore_path=args.restore_path)
-    trainer.test()
+    if args.test is not True:
+        if args.train_baseline is None or args.train_baseline is False:
+            trainer.train(restore_path=args.restore_path)
+        else:
+            trainer.train_baseline()
+    else:
+        trainer.test()
+
+    # train
 
     wandb.finish()

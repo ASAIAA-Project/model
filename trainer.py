@@ -1,5 +1,12 @@
+"""Train the model"""
+
+import logging
 import wandb
 import torch
+import cv2
+from torch.nn import functional as F
+from skimage import exposure
+import torchvision.transforms as transforms
 
 import utils
 
@@ -9,14 +16,16 @@ from tqdm import tqdm
 from torch.cuda.amp import autocast
 from torch.cuda.amp import GradScaler
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class Trainer:
     def __init__(self, model, optimizer_R, optimizer_D, loss_fn_R, loss_fn_D,
                  train_dataloader, val_dataloader, test_dataloader, metrics,
-                 save_dir, logger, params):
+                 params, save_dir):
         self.model = model
         if params['cuda']:
-            self.model.cuda()
+            # self.model.cuda()
+            self.model.to(device)
         self.scaler = GradScaler(params['amp'])
         self.optimizer_R = optimizer_R
         self.optimizer_D = optimizer_D
@@ -28,7 +37,7 @@ class Trainer:
         self.metrics = metrics
         self.params = params
         self.save_dir = save_dir
-        self.logger = logger
+
 
     def train_one_epoch(self):
         self.model.train()
@@ -41,9 +50,10 @@ class Trainer:
         with tqdm(total=len(self.dataloader)) as t:
             for i, (data, target) in enumerate(self.dataloader):
                 if self.params['cuda']:
-                    data, target = data.to(
-                        'cuda', non_blocking=True), target.to('cuda',
-                                                              non_blocking=True)
+                    # data, target = data.to(
+                    #     'cuda', non_blocking=True), target.to('cuda',
+                    #                                           non_blocking=True)
+                    data, target = data.to(device), target.to(device)
 
                 self.optimizer_R.zero_grad()
 
@@ -115,10 +125,64 @@ class Trainer:
 
         metrics_string = " ; ".join("{}: {:05.3f}".format(k, v)
                                     for k, v in metrics_mean.items())
-        if self.logger is not None:
-            self.logger.info("***** Train metrics: " + metrics_string)
-        else:
-            print("***** Train metrics: " + metrics_string)
+        logging.info("***** Train metrics: " + metrics_string)
+
+
+    def train_one_epoch_baseline(self):
+        self.model.train()
+
+        loss_R_avg = utils.RunningAverage()
+
+        summary = []
+
+        with tqdm(total=len(self.dataloader)) as t:
+            for i, (data, target) in enumerate(self.dataloader):
+                data, target = data.to(device), target.to(device)
+
+                self.optimizer_R.zero_grad()
+
+                with autocast(enabled=self.params['amp']):
+                    output = self.model.regressor(data)
+                    loss_R = self.loss_fn_R(target, output)
+
+                self.scaler.scale(loss_R).backward()
+                self.scaler.unscale_(self.optimizer_R)
+                self.scaler.step(self.optimizer_R)
+                self.scaler.update()
+
+                if i % self.params['save_summary_steps'] == 0:
+                    # extract data from torch Variable, move to cpu, convert to numpy arrays
+                    output = output.data.cpu().numpy()
+                    target = target.data.cpu().numpy()
+
+                    # compute all metrics on this batch
+                    summary_batch = {
+                        metric: self.metrics[metric](output, target)
+                        for metric in self.metrics
+                    }
+                    summary_batch['loss_R'] = loss_R.item()
+                    if len(self.dataloader
+                           ) - i < self.params['save_summary_steps']:
+                        wandb.log({'train': summary_batch}, commit=False)
+                    else:
+                        wandb.log({'train': summary_batch})
+                    summary.append(summary_batch)
+
+                # update ternimal information
+                loss_R_avg.update(loss_R.item())
+
+                t.set_postfix(loss_R=loss_R_avg())
+                t.update()
+
+        metrics_mean = {
+            metric: np.mean([x[metric] for x in summary])
+            for metric in summary[0].keys()
+        }
+
+        metrics_string = " ; ".join("{}: {:05.3f}".format(k, v)
+                                    for k, v in metrics_mean.items())
+        logging.info("***** Train metrics: " + metrics_string)
+
 
     def validate(self):
         self.model.eval()
@@ -147,32 +211,80 @@ class Trainer:
         wandb.log({'val': metrics_mean})
         metrics_string = " ; ".join("{}: {:05.3f}".format(k, v)
                                     for k, v in metrics_mean.items())
-        if self.logger is not None:
-            self.logger.info("***** Val metrics: " + metrics_string)
-        else:
-            print("***** Val metrics: " + metrics_string)
+        logging.info("***** Val metrics: " + metrics_string)
         return metrics_mean
+
+    def save_img(self, img, counter):
+        save_img_path = './results/current_best'
+        means = [0.485, 0.456, 0.406]
+        stds = [0.229, 0.224, 0.225]
+        img = img * torch.tensor(stds).view(3, 1, 1) + torch.tensor(means).view(3, 1, 1)
+        to_PIL_image = transforms.ToPILImage()
+        to_PIL_image(img).save(save_img_path + '/' + str(counter) + '_test.jpg')
 
     def test(self):
         utils.load_best_checkpoint(self.save_dir, self.model)
         self.model.eval()
+
+        # CAAM
+        # a dict to store the activations
+        activation = {}
+
+        def getActivation(name):
+            # the hook signature
+            def hook(model, input, output):
+                activation[name] = output.detach()
+
+            return hook
+
+        hook = self.model.regressor.backbone.model[6][1].relu.register_forward_hook(getActivation('ReLU'))
+        means = [0.485, 0.456, 0.406]
+        stds = [0.229, 0.224, 0.225]
+        means = torch.reshape(torch.tensor(means), (1, 3, 1, 1)).to(device)
+        stds = torch.reshape(torch.tensor(stds), (1, 3, 1, 1)).to(device)
+
         summary = []
-        with torch.no_grad():
-            for data, target in tqdm(self.test_dataloader):
-                if self.params['cuda']:
-                    data, target = data.to(
-                        'cuda', non_blocking=True), target.to('cuda',
-                                                              non_blocking=True)
-                output = self.model.regressor(data)
-                loss_R = self.loss_fn_R(output, target)
-                output = output.data.cpu().numpy()
-                target = target.data.cpu().numpy()
-                summary_batch = {
-                    metric: self.metrics[metric](output, target)
-                    for metric in self.metrics.keys()
-                }
-                summary_batch['loss_R'] = loss_R.item()
-                summary.append(summary_batch)
+        counter = 0
+        save_img_path = './results/baseline'
+        # with torch.no_grad():
+        for data, target in tqdm(self.test_dataloader):
+            if self.params['cuda']:
+                data, target = data.to(
+                    'cuda', non_blocking=True), target.to('cuda',
+                                                            non_blocking=True)
+            # self.save_img(data.cpu()[0, :, :, :], counter)
+            output = self.model.regressor(data)
+            loss_R = self.loss_fn_R(output, target)
+            output = output.data.cpu().numpy()
+            target = target.data.cpu().numpy()
+            summary_batch = {
+                metric: self.metrics[metric](output, target)
+                for metric in self.metrics.keys()
+            }
+            summary_batch['loss_R'] = loss_R.item()
+            summary.append(summary_batch)
+            
+            image = data * stds + means
+            image = image.cpu().detach().numpy()
+            image = np.transpose(image, (0, 2, 3, 1))
+
+            att_map = torch.mean(activation['ReLU'], 1, keepdim=True)
+            att_map = utils.norm_att_map(att_map)
+            att_map = F.interpolate(att_map, size=(image.shape[1], image.shape[2]), mode='bilinear')
+            att_map = att_map.cpu().detach().numpy()
+
+            map_img = exposure.rescale_intensity(att_map, out_range=(0, 255))
+            map_img = np.uint8(map_img).squeeze()
+            heatmap = cv2.applyColorMap(map_img, cv2.COLORMAP_JET)
+            # image_rgb = cv2.cvtColor(image.squeeze(), cv2.COLOR_BGR2RGB)
+            image = cv2.cvtColor(image.squeeze(), cv2.COLOR_RGB2BGR)
+
+            fin = cv2.addWeighted(heatmap, 0.5, np.uint8(image.squeeze() * 255.0), 0.5, 0)
+            cv2.imwrite(save_img_path + '/' + str(counter) + '_heatmap.jpg', fin)
+            cv2.imwrite(save_img_path + '/' + str(counter) + '_original.jpg', np.uint8(image.squeeze() * 255.0))
+
+            counter += 1
+
 
         metrics_mean = {
             metric: np.mean([x[metric] for x in summary])
@@ -181,12 +293,36 @@ class Trainer:
         wandb.log({'test': metrics_mean})
         metrics_string = " ; ".join("{}: {:05.3f}".format(k, v)
                                     for k, v in metrics_mean.items())
-        if self.logger is not None:
-            self.logger.info("***** Test metrics: " + metrics_string)
-        else:
-            print("***** Test metrics: " + metrics_string)
+        logging.info("***** Test metrics: " + metrics_string)
         return metrics_mean
 
+
+    def train_baseline(self, restore_path=None):
+        if restore_path is not None:
+            pass
+        best_val_metric = 0.0
+        for epoch in range(self.params['epochs']):
+            self.train_one_epoch_baseline()
+            metrics = self.validate()
+            val_metric = metrics[self.params['eval_metric_name']]
+            is_best = val_metric > best_val_metric
+            if is_best:
+                best_val_metric = val_metric
+                logging.info("- Found new best accuracy")
+
+                # Save best val metrics in a json file in the model directory
+                best_json_path = self.save_dir / "metrics_val_best_weights.json"
+                utils.save_dict_to_json(metrics, best_json_path)
+            utils.save_checkpoint(
+                {
+                    'epoch': epoch + 1,
+                    'state_dict': self.model.state_dict(),
+                    'optim_R_dict': self.optimizer_R.state_dict()
+                },
+                is_best=is_best,
+                checkpoint=self.save_dir)
+
+    
     def train(self, restore_path=None):
         start_epoch = 0
         if restore_path is not None:
@@ -201,10 +337,7 @@ class Trainer:
             is_best = val_metric > best_val_metric
             if is_best:
                 best_val_metric = val_metric
-                if self.logger is not None:
-                    self.logger.info("- Found new best accuracy")
-                else:
-                    print("- Found new best accuracy")
+                logging.info("- Found new best accuracy")
 
                 # Save best val metrics in a json file in the model directory
                 best_json_path = self.save_dir / "metrics_val_best_weights.json"
