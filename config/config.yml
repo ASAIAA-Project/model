@@ -17,7 +17,7 @@ epochs: 30
 wrap_size: 224
 seed: 42
 save_dir: ./experiments/1
-eval_metric_name: accuracy
+eval_metric_name: accuracy_ten
 momentum_D_backbone: 0.001
 wandb_project: 542_test_exp
 learning_rate_D: 0.0001

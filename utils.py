@@ -30,7 +30,6 @@ def set_all_random_seed(seed, rank=0):
 class RunningAverage():
     """A simple class that maintains the running average of a quantity
     """
-
     def __init__(self):
         self.steps = 0
         self.total = 0
@@ -113,7 +112,7 @@ def load_best_checkpoint(save_dir, model):
     if not checkpoint_path.exists():
         print("File doesn't exist {}".format(checkpoint_path))
     else:
-        checkpoint = torch.load(checkpoint_path)
+        checkpoint = torch.load(str(checkpoint_path))
         model.load_state_dict(checkpoint['state_dict'])
 
     return

@@ -226,7 +226,7 @@ if __name__ == '__main__':
                       test_dataloader, metrics, trainer_config,
                       Path(args.save_dir))
 
-    trainer.train(restore_path=args.restore_path)
+    #trainer.train(restore_path=args.restore_path)
     trainer.test()
 
     wandb.finish()
