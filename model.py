@@ -17,6 +17,7 @@ def create_ASAIAANet(model_config):
         feature_extractor, Finializer(model_config.center_bias_weight),
         ReadoutNet(model_config.feature_channels_num, model_config.feature_h,
                    model_config.feature_w))
+
     return ASAIAANet(regressor, distractor, model_config.distracting_block)
 
 
@@ -28,12 +29,13 @@ class ReadoutNet(nn.Module):
                 ('layernorm0',
                  nn.LayerNorm([feature_channels_num, feature_h, feature_w])),
                 ('conv0', nn.Conv2d(feature_channels_num,
-                                    128, (1, 1),
-                                    bias=True)), ('softplus0', nn.Softplus()),
-                ('layernorm1', nn.LayerNorm([128, feature_h, feature_w])),
-                ('conv1', nn.Conv2d(128, 16, (1, 1), bias=True)),
-                ('softplus1', nn.Softplus()),
-                ('conv2', nn.Conv2d(16, 1, (1, 1), bias=True)),
+                                    512, (1, 1),
+                                    bias=True)),
+                ('softplus0', nn.Softplus()),
+                ('layernorm1', nn.LayerNorm([512, feature_h, feature_w])),
+                ('conv1', nn.Conv2d(512, 256, (1, 1), bias=True)),
+                #('softplus1', nn.Softplus()),
+                #('conv2', nn.Conv2d(256, 256, (1, 1), bias=True)),
                 ('sigmoid', nn.Sigmoid())
             ]))
 
@@ -55,6 +57,7 @@ class Finializer(nn.Module):
             kernel_size=[self.kernel_size, self.kernel_size],
             sigma=[self.sigma, self.sigma],
             border_type='constant')
+        #x = reduce(x, 'b c (h1 h) (w1 w) -> b c h w', 'max', h1=2, w1=2)
         return x
 
 

@@ -2,6 +2,7 @@ import wandb
 import torch
 
 import utils
+import torchvision
 
 import numpy as np
 
@@ -86,6 +87,7 @@ class Trainer:
                     # extract data from torch Variable, move to cpu, convert to numpy arrays
                     output = output.data.cpu().numpy()
                     target = target.data.cpu().numpy()
+                    mask = mask.data.mean(dim=1).unsqueeze(dim=1)
 
                     # compute all metrics on this batch
                     summary_batch = {
@@ -99,6 +101,14 @@ class Trainer:
                         wandb.log({'train': summary_batch}, commit=False)
                     else:
                         wandb.log({'train': summary_batch})
+
+                    # log the mask
+                    mask_grid = torchvision.utils.make_grid(mask,
+                                                            nrow=16,
+                                                            normalize=True,
+                                                            scale_each=True)
+                    mask_log_img = wandb.Image(mask_grid, caption='mask')
+                    wandb.log({'mask': mask_log_img})
                     summary.append(summary_batch)
 
                 # update ternimal information

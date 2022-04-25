@@ -51,7 +51,7 @@ class TruncCJSLossD:
 
     def __call__(self, y_true, y_pred, mask):
         loss = -cjs_loss(y_true, y_pred)
-        loss += self.L1_D * mask.abs().sum()
+        loss += self.L1_D * mask.abs().mean()
         return loss
 
 
@@ -75,7 +75,7 @@ class CJSLoss10D:
 
     def __call__(self, y_true, y_pred, mask):
         loss = -cjs_loss_10(y_true, y_pred)
-        loss += self.L1_D * mask.abs().sum()
+        loss += self.L1_D * mask.abs().mean()
         return loss
 
 

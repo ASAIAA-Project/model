@@ -8,7 +8,7 @@ from torch import optim
 
 from dataset import AVADatasetEmp
 from trainer import Trainer
-from metrics import accuracy_ten, accuracy_bi
+from metrics import accuracy_ten, accuracy_bi, accuracy_close
 from loss import cjs_loss_10_R, CJSLoss10D
 from utils import set_all_random_seed, set_logger
 from model import create_ASAIAANet
@@ -44,10 +44,6 @@ def set_parse():
                         type=float,
                         required=True,
                         help='The sigma of the gaussian blur')
-    parser.add_argument('--learning_rate',
-                        type=float,
-                        required=True,
-                        help='The learning rate of the optimizer')
     parser.add_argument('--batch_size',
                         type=int,
                         required=True,
@@ -202,24 +198,28 @@ if __name__ == '__main__':
     train_dataloader = DataLoader(train_data,
                                   batch_size=args.batch_size,
                                   shuffle=True,
-                                  num_workers=2,
+                                  num_workers=4,
                                   pin_memory=True)
 
     val_data = AVADatasetEmp('val.pickle', data_dir, args.wrap_size)
     val_dataloader = DataLoader(val_data,
                                 batch_size=args.batch_size,
                                 shuffle=False,
-                                num_workers=2,
+                                num_workers=8,
                                 pin_memory=True)
 
     test_data = AVADatasetEmp('test.pickle', data_dir, args.wrap_size)
     test_dataloader = DataLoader(test_data,
                                  batch_size=args.batch_size,
                                  shuffle=False,
-                                 num_workers=2,
+                                 num_workers=8 ,
                                  pin_memory=True)
 
-    metrics = {'accuracy_ten': accuracy_ten, 'accuracy_bi': accuracy_bi}
+    metrics = {
+        'accuracy_ten': accuracy_ten,
+        'accuracy_bi': accuracy_bi,
+        'accuracy_close': accuracy_close
+    }
 
     cjs_loss_10_D = CJSLoss10D(args.L1_D)
     trainer = Trainer(
@@ -237,7 +237,7 @@ if __name__ == '__main__':
         trainer_config,
     )
 
-    #trainer.train(restore_path=args.restore_path)
+    trainer.train(restore_path=args.restore_path)
     trainer.test()
 
     wandb.finish()
