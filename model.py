@@ -118,7 +118,7 @@ class ASAIAANet(nn.Module):
         self.target_block = target_block
         self.regressor = regressor
 
-    def forward(self, x):
+    def forward(self, x, min_max):
         mask = self.distractor(x)
         for name, block in self.regressor.backbone.named_children():
             if name == 'fc':
@@ -128,5 +128,8 @@ class ASAIAANet(nn.Module):
                 x = block(x)
                 if name == self.target_block:
                     ill_features = x * mask
-                    x = random.random() * 1.5  * ill_features + x
+                    if min_max:
+                        x = -random.random() * ill_features + x
+                    else:
+                        x = -ill_features + x
         return x, mask, ill_features

@@ -1,3 +1,4 @@
+from sympy import true
 import wandb
 import torch
 
@@ -5,10 +6,14 @@ import utils
 import torchvision
 
 import numpy as np
+import cv2
 
 from tqdm import tqdm
+from skimage import exposure
 from torch.cuda.amp import autocast
 from torch.cuda.amp import GradScaler
+from torch.nn import functional as F
+from pathlib2 import Path
 
 
 class Trainer:
@@ -46,17 +51,6 @@ class Trainer:
                         'cuda', non_blocking=True), target.to('cuda',
                                                               non_blocking=True)
 
-                self.optimizer_R.zero_grad()
-
-                with autocast(enabled=self.params['amp']):
-                    output, _, ill_features = self.model(data)
-                    loss_R = self.loss_fn_R(target, output, ill_features)
-
-                self.scaler.scale(loss_R).backward()
-                self.scaler.unscale_(self.optimizer_R)
-                self.scaler.step(self.optimizer_R)
-                self.scaler.update()
-
                 # update the parameter of extractor with momentum
                 params_backbone_D = self.model.distractor.feature_extracter.state_dict(
                 )
@@ -75,12 +69,23 @@ class Trainer:
                 self.optimizer_D.zero_grad()
 
                 with autocast(enabled=self.params['amp']):
-                    output, mask, _ = self.model(data)
+                    output, mask, _ = self.model(data, True)
                     loss_D = self.loss_fn_D(target, output, mask)
 
                 self.scaler.scale(loss_D).backward()
                 self.scaler.unscale_(self.optimizer_D)
                 self.scaler.step(self.optimizer_D)
+                self.scaler.update()
+
+                self.optimizer_R.zero_grad()
+
+                with autocast(enabled=self.params['amp']):
+                    output, _, ill_features = self.model(data, False)
+                    loss_R = self.loss_fn_R(target, output, ill_features)
+
+                self.scaler.scale(loss_R).backward()
+                self.scaler.unscale_(self.optimizer_R)
+                self.scaler.step(self.optimizer_R)
                 self.scaler.update()
 
                 if i % self.params['save_summary_steps'] == 0:
@@ -161,7 +166,24 @@ class Trainer:
     def test(self):
         utils.load_best_checkpoint(self.save_dir, self.model)
         self.model.eval()
+
+        activation = {}
+
+        counter = 0
+        save_img_path = Path('./CAAM/4')
+
+        def getActivation(name):
+            # the hook signature
+            def hook(model, input, output):
+                activation[name] = output.detach()
+
+            return hook
+
+        self.model.regressor.backbone.layer3[1].bn2.register_forward_hook(
+            getActivation('ReLU'))
+
         summary = []
+
         with torch.no_grad():
             for data, target in tqdm(self.test_dataloader):
                 if self.params['cuda']:
@@ -176,6 +198,30 @@ class Trainer:
                     for metric in self.metrics.keys()
                 }
                 summary.append(summary_batch)
+                # CAAM
+                img = utils.restore_img(data, self.params['cuda']).cpu().numpy()
+                img = np.transpose(img, (0, 2, 3, 1))
+                att_map = torch.mean(activation['ReLU'], 1, keepdim=True)
+                att_map = utils.norm_att_map(att_map)
+                att_map = F.interpolate(att_map,
+                                        size=(img.shape[1], img.shape[2]),
+                                        mode='bilinear')
+                att_map = att_map.cpu().numpy()
+
+                map_img = exposure.rescale_intensity(att_map,
+                                                     out_range=(0, 255))
+                map_img = np.uint8(map_img).squeeze()
+                heatmap = cv2.applyColorMap(map_img, cv2.COLORMAP_JET)
+                # image_rgb = cv2.cvtColor(image.squeeze(), cv2.COLOR_BGR2RGB)
+                image = cv2.cvtColor(img.squeeze(), cv2.COLOR_RGB2BGR)
+
+                fin = cv2.addWeighted(heatmap, 0.5,
+                                      np.uint8(image.squeeze() * 255.0), 0.5, 0)
+                cv2.imwrite(str(save_img_path / f'{counter}_heatmap.jpg'), fin)
+                cv2.imwrite(str(save_img_path / f'{counter}_original.jpg'),
+                            np.uint8(image.squeeze() * 255.0))
+
+                counter += 1
 
         metrics_mean = {
             metric: np.mean([x[metric] for x in summary])

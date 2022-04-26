@@ -15,7 +15,7 @@ batch_size: 256
 epochs: 100
 wrap_size: 224
 seed: 42
-save_dir: ./experiments/7
+save_dir: ./experiments/8
 eval_metric_name: accuracy_ten
 momentum_D_backbone: 0.00002
 wandb_project: 542_exp_no_l1

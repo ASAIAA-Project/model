@@ -214,7 +214,7 @@ if __name__ == '__main__':
 
     test_data = AVADatasetEmp('test.pickle', data_dir, args.wrap_size)
     test_dataloader = DataLoader(test_data,
-                                 batch_size=args.batch_size,
+                                 batch_size=1,
                                  shuffle=False,
                                  num_workers=8,
                                  pin_memory=True)

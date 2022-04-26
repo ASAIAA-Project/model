@@ -1,13 +1,13 @@
 import json
 import logging
 import shutil
-from subprocess import check_output
-from tabnanny import check
 import torch
 import random
-
 import numpy as np
 import os
+import cv2
+
+from dataset import IMAGE_NET_MEAN, IMAGE_NET_STD
 
 
 def set_all_random_seed(seed, rank=0):
@@ -145,3 +145,31 @@ def load_checkpoint(checkpoint_path, model, optimizer_R=None, optimizer_D=None):
         optimizer_D.load_state_dict(checkpoint['optim_D_dict'])
 
     return checkpoint['epoch']
+
+
+def restore_img(img_tensor, cuda):
+    mean_tensor = torch.reshape(torch.tensor(IMAGE_NET_MEAN), (1, 3, 1, 1))
+    std_tensor = torch.reshape(torch.tensor(IMAGE_NET_STD), (1, 3, 1, 1))
+    if cuda:
+        mean_tensor = mean_tensor.to('cuda')
+        std_tensor = std_tensor.to('cuda')
+    return img_tensor * std_tensor + mean_tensor
+
+
+def norm_att_map(att_map):
+    _min = torch.min(att_map)
+    _max = torch.max(att_map)
+    att_norm = (att_map - _min) / (_max - _min)
+    return att_norm
+
+
+def cammed_image(image, mask, require_norm=False):
+    if require_norm:
+        mask = mask - np.min(mask)
+        mask = mask / np.max(mask)
+    heatmap = cv2.applyColorMap(np.uint8(255 * mask), cv2.COLORMAP_JET)
+    heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
+    heatmap = np.float32(heatmap) / 255
+    cam = heatmap + np.float32(image)
+    cam = cam / np.max(cam)
+    return heatmap * 255., cam * 255.
