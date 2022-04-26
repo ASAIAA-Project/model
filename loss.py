@@ -65,8 +65,15 @@ def cjs_loss_10(y_true, y_pred):
     return loss.sum(dim=1).mean()
 
 
-def cjs_loss_10_R(y_true, y_pred):
-    return cjs_loss_10(y_true, y_pred)
+class CJSLoss10R:
+    def __init__(self, L1_R):
+        self.L1_R = L1_R
+
+    def __call__(self, y_true, y_pred, ill_features):
+        loss = cjs_loss_10(y_true, y_pred)
+        # l1_term = ill_features.abs().mean()
+        # loss += 0.6 * l1_term
+        return loss
 
 
 class CJSLoss10D:
@@ -75,7 +82,7 @@ class CJSLoss10D:
 
     def __call__(self, y_true, y_pred, mask):
         loss = -cjs_loss_10(y_true, y_pred)
-        loss += self.L1_D * mask.abs().mean()
+        loss += -4 * loss.detach().item() * mask.abs().mean()
         return loss
 
 

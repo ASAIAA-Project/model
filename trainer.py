@@ -49,8 +49,8 @@ class Trainer:
                 self.optimizer_R.zero_grad()
 
                 with autocast(enabled=self.params['amp']):
-                    output, _ = self.model(data)
-                    loss_R = self.loss_fn_R(target, output)
+                    output, _, ill_features = self.model(data)
+                    loss_R = self.loss_fn_R(target, output, ill_features)
 
                 self.scaler.scale(loss_R).backward()
                 self.scaler.unscale_(self.optimizer_R)
@@ -75,7 +75,7 @@ class Trainer:
                 self.optimizer_D.zero_grad()
 
                 with autocast(enabled=self.params['amp']):
-                    output, mask = self.model(data)
+                    output, mask, _ = self.model(data)
                     loss_D = self.loss_fn_D(target, output, mask)
 
                 self.scaler.scale(loss_D).backward()
@@ -103,10 +103,7 @@ class Trainer:
                         wandb.log({'train': summary_batch})
 
                     # log the mask
-                    mask_grid = torchvision.utils.make_grid(mask,
-                                                            nrow=16,
-                                                            normalize=True,
-                                                            scale_each=True)
+                    mask_grid = torchvision.utils.make_grid(mask, nrow=16)
                     mask_log_img = wandb.Image(mask_grid, caption='mask')
                     wandb.log({'mask': mask_log_img})
                     summary.append(summary_batch)
@@ -140,14 +137,12 @@ class Trainer:
                         'cuda', non_blocking=True), target.to('cuda',
                                                               non_blocking=True)
                 output = self.model.regressor(data)
-                loss_R = self.loss_fn_R(output, target)
                 output = output.data.cpu().numpy()
                 target = target.data.cpu().numpy()
                 summary_batch = {
                     metric: self.metrics[metric](output, target)
                     for metric in self.metrics.keys()
                 }
-                summary_batch['loss_R'] = loss_R.item()
                 summary.append(summary_batch)
 
         metrics_mean = {
@@ -174,14 +169,12 @@ class Trainer:
                         'cuda', non_blocking=True), target.to('cuda',
                                                               non_blocking=True)
                 output = self.model.regressor(data)
-                loss_R = self.loss_fn_R(output, target)
                 output = output.data.cpu().numpy()
                 target = target.data.cpu().numpy()
                 summary_batch = {
                     metric: self.metrics[metric](output, target)
                     for metric in self.metrics.keys()
                 }
-                summary_batch['loss_R'] = loss_R.item()
                 summary.append(summary_batch)
 
         metrics_mean = {

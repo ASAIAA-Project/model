@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torchvision.models as models
+import random
 
 from einops import repeat
 from torchvision.models import feature_extraction
@@ -11,8 +12,12 @@ from collections import OrderedDict
 def create_ASAIAANet(model_config):
     regressor = Regressor(model_config.backbone_type, model_config.pretrained,
                           model_config.weight_path)
+    extractor_backbone = Regressor(model_config.backbone_type,
+                                   model_config.pretrained,
+                                   model_config.weight_path).backbone
+    extractor_backbone.requires_grad_(False)
     feature_extractor = feature_extraction.create_feature_extractor(
-        regressor.backbone, model_config.feature_target_layer)
+        extractor_backbone, model_config.feature_target_layer)
     distractor = Distractor(
         feature_extractor, Finializer(model_config.center_bias_weight),
         ReadoutNet(model_config.feature_channels_num, model_config.feature_h,
@@ -122,5 +127,6 @@ class ASAIAANet(nn.Module):
             else:
                 x = block(x)
                 if name == self.target_block:
-                    x = x * mask + x
-        return x, mask
+                    ill_features = x * mask
+                    x = random.random() * 1.5  * ill_features + x
+        return x, mask, ill_features

@@ -1,3 +1,4 @@
+from operator import mod
 import configargparse
 import torch
 import wandb
@@ -9,9 +10,11 @@ from torch import optim
 from dataset import AVADatasetEmp
 from trainer import Trainer
 from metrics import accuracy_ten, accuracy_bi, accuracy_close
-from loss import cjs_loss_10_R, CJSLoss10D
+from loss import CJSLoss10D, CJSLoss10R
 from utils import set_all_random_seed, set_logger
 from model import create_ASAIAANet
+
+from torch.utils.tensorboard import SummaryWriter
 
 
 def set_parse():
@@ -175,6 +178,7 @@ if __name__ == '__main__':
     parser = set_parse()
     args = parser.parse_args()
     wandb_config, trainer_config = create_configs(args)
+    #tb_writer = SummaryWriter(log_dir=args.save_dir)
 
     set_all_random_seed(args.seed)
     logger = set_logger(Path(args.save_dir) / 'experiment.log')
@@ -212,7 +216,7 @@ if __name__ == '__main__':
     test_dataloader = DataLoader(test_data,
                                  batch_size=args.batch_size,
                                  shuffle=False,
-                                 num_workers=8 ,
+                                 num_workers=8,
                                  pin_memory=True)
 
     metrics = {
@@ -220,8 +224,11 @@ if __name__ == '__main__':
         'accuracy_bi': accuracy_bi,
         'accuracy_close': accuracy_close
     }
+    #images, _ = next(iter(train_dataloader))
+    #tb_writer.add_graph(model, images)
 
     cjs_loss_10_D = CJSLoss10D(args.L1_D)
+    cjs_loss_10_R = CJSLoss10R(args.L1_D)
     trainer = Trainer(
         model,
         optimizer_R,
