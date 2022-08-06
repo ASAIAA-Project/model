@@ -1,5 +1,6 @@
 # Intro
 This is the model part of the Adversarial Saliency Aware Image Aesthetic Assessment (ASAIAA) project.
+![pipeline of the model](./flow_model.png)
 # Usage
 ## Wandb
 This project is hosted on [Wandb](https://wandb.ai/542proj). To use it, you need to [sign up](https://wandb.ai/signup) and [create an API key](https://wandb.ai/settings/api).
